@@ -102,38 +102,43 @@ export const parseXerFile = async (file: File): Promise<{ data: ProjectData, sum
     };
 
     // 1. Convert Calendars
-    // P6 Calendars are complex. We will map the ID and Name, but default to Standard settings 
-    // as parsing P6 blob data for specific hours/exceptions is out of scope for this lightweight parser.
     const calendars: Calendar[] = [];
     const calendarIdMap = new Map<string, string>(); // p6_clndr_id -> app_calendar_id
+    const calendarHourMap = new Map<string, number>(); // Store hours per day for duration calc
     
     if (calendarTable.length > 0) {
         calendarTable.forEach(row => {
-             // Create a new ID to ensure uniqueness or use internal if clean
              const p6Id = row.clndr_id;
              const name = row.clndr_name;
-             const isDefault = row.default_flag === 'Y';
              
-             // Simple logic: If name contains "6" or "7", maybe assume 6 or 7 day week, else 5.
-             // This is heuristic.
+             // PARSE HOURS PER DAY from 'day_hr_cnt' if available, otherwise default to 8
+             // P6 often stores this as a float.
+             let hoursPerDay = 8;
+             if (row.day_hr_cnt) {
+                 const parsed = parseFloat(row.day_hr_cnt);
+                 if (!isNaN(parsed) && parsed > 0) hoursPerDay = parsed;
+             }
+
+             // Heuristic for week days based on name if no blob parsing available
              let weekDays = [false, true, true, true, true, true, false]; // Default 5 day
-             if (name.includes('6') || name.includes('Six')) weekDays = [false, true, true, true, true, true, true];
-             if (name.includes('7') || name.includes('Seven')) weekDays = [true, true, true, true, true, true, true];
+             if (name.toLowerCase().includes('6') || name.toLowerCase().includes('six')) weekDays = [false, true, true, true, true, true, true];
+             if (name.toLowerCase().includes('7') || name.toLowerCase().includes('seven')) weekDays = [true, true, true, true, true, true, true];
 
              const newCal: Calendar = {
                  id: `CAL-${p6Id}`,
                  name: name,
-                 isDefault: false, // Will set project default later
+                 isDefault: false, 
                  weekDays: weekDays,
-                 hoursPerDay: 8,
+                 hoursPerDay: hoursPerDay,
                  exceptions: []
              };
              calendars.push(newCal);
              calendarIdMap.set(p6Id, newCal.id);
+             calendarHourMap.set(p6Id, hoursPerDay);
         });
     } else {
-        // Fallback default
         calendars.push({ id: 'default', name: 'Standard 5-Day', isDefault: true, weekDays: [false, true, true, true, true, true, false], hoursPerDay: 8, exceptions: [] });
+        calendarHourMap.set('default', 8);
     }
     
     // Set Default Calendar
@@ -179,8 +184,23 @@ export const parseXerFile = async (file: File): Promise<{ data: ProjectData, sum
     const activities: Activity[] = taskTable.filter(r => r.proj_id === projectTable?.proj_id).map(row => {
         const id = row.task_code;
         taskIdMap.set(row.task_id, id);
+        
+        // DURATION CALCULATION CORRECTION
+        // P6 stores duration in hours (target_drtn_hr_cnt).
+        // To get days, we MUST divide by the specific calendar's hours/day.
         const durationHrs = parseFloat(row.target_drtn_hr_cnt || '0');
-        const duration = Math.round(durationHrs / 8); 
+        
+        // Find Activity Calendar
+        let calId = defaultCalId;
+        if (row.clndr_id && calendarIdMap.has(row.clndr_id)) {
+            calId = calendarIdMap.get(row.clndr_id)!;
+        }
+        
+        // Get hours per day for this calendar (fallback to 8)
+        const hrsPerDay = calendarHourMap.get(row.clndr_id || '') || 8;
+        
+        // Calculate Days
+        const duration = Math.round(durationHrs / hrsPerDay); 
 
         // Constraint
         const constraintType = mapConstraintType(row.task_control_type_code);
@@ -191,12 +211,6 @@ export const parseXerFile = async (file: File): Promise<{ data: ProjectData, sum
              } else {
                  constraintDate = parseXerDate(row.target_end_date) || parseXerDate(row.target_start_date);
              }
-        }
-
-        // Map Calendar
-        let calId = defaultCalId;
-        if (row.clndr_id && calendarIdMap.has(row.clndr_id)) {
-            calId = calendarIdMap.get(row.clndr_id)!;
         }
 
         return {
@@ -214,7 +228,7 @@ export const parseXerFile = async (file: File): Promise<{ data: ProjectData, sum
             constraintDate: constraintDate,
             earlyStart: new Date(), earlyFinish: new Date(),
             lateStart: new Date(), lateFinish: new Date(),
-            totalFloat: parseFloat(row.total_float_hr_cnt || '0') / 8,
+            totalFloat: parseFloat(row.total_float_hr_cnt || '0') / hrsPerDay, // Float also needs conversion
             isCritical: (row.status_code === 'TK_Active' || row.status_code === 'TK_NotStart') && parseFloat(row.total_float_hr_cnt || '0') <= 0
         };
     });
@@ -227,10 +241,14 @@ export const parseXerFile = async (file: File): Promise<{ data: ProjectData, sum
         if (succId && predId) {
             const act = activities.find(a => a.id === succId);
             if (act) {
+                // Determine Lag conversion factor based on Successor calendar (standard P6 behavior usually, or Pred depending on config)
+                // We'll use the successor's calendar hours for simplicity
+                const calHours = calendarHourMap.get(act.calendarId || '') || 8;
+                
                 act.predecessors.push({
                     activityId: predId,
                     type: mapRelType(row.pred_type),
-                    lag: Math.round(parseFloat(row.lag_hr_cnt || '0') / 8)
+                    lag: Math.round(parseFloat(row.lag_hr_cnt || '0') / calHours)
                 });
                 summary.relationshipCount++;
             }
@@ -240,10 +258,8 @@ export const parseXerFile = async (file: File): Promise<{ data: ProjectData, sum
     // 5. Convert Resources
     const rsrcIdMap = new Map<string, string>();
     const resources: Resource[] = rsrcTable.map(row => {
-        // Clean ID (remove spaces)
         const id = (row.rsrc_short_name || row.rsrc_name || 'R').trim(); 
         rsrcIdMap.set(row.rsrc_id, id);
-        
         return {
             id: id,
             name: row.rsrc_name,
@@ -269,7 +285,6 @@ export const parseXerFile = async (file: File): Promise<{ data: ProjectData, sum
         }
     });
 
-    // 7. Construct Result
     const projStartDate = projectTable?.plan_start_date ? parseXerDate(projectTable.plan_start_date) : new Date();
 
     const data: ProjectData = {
