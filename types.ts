@@ -157,3 +157,15 @@ export interface LicenseInfo {
     key?: string;
     activationDate?: string;
 }
+
+export interface ImportSummary {
+    fileName: string;
+    projectTitle: string;
+    wbsCount: number;
+    activityCount: number;
+    resourceCount: number;
+    calendarCount: number;
+    relationshipCount: number;
+    success: boolean;
+    errors?: string[];
+}

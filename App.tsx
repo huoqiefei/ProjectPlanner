@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { ProjectData, ScheduleResult, UserSettings, PrintSettings, AdminConfig, LicenseInfo } from './types';
+import { ProjectData, ScheduleResult, UserSettings, PrintSettings, AdminConfig, LicenseInfo, ImportSummary } from './types';
 import { calculateSchedule } from './services/scheduler';
 import { getLicenseInfo, TRIAL_LIMIT } from './services/licenseService';
 import { parseXerFile } from './services/xerService';
@@ -13,7 +13,7 @@ import DetailsPanel from './components/DetailsPanel';
 import ResourcesPanel from './components/ResourcesPanel';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
 import LicenseModal from './components/LicenseModal';
-import { AlertModal, ConfirmModal, AboutModal, UserSettingsModal, PrintSettingsModal, BatchAssignModal, AdminModal, HelpModal, ColumnSetupModal } from './components/Modals';
+import { AlertModal, ConfirmModal, AboutModal, UserSettingsModal, PrintSettingsModal, BatchAssignModal, AdminModal, HelpModal, ColumnSetupModal, ImportReportModal } from './components/Modals';
 
 // --- APP ---
 const App: React.FC = () => {
@@ -36,6 +36,7 @@ const App: React.FC = () => {
     // Modals State
     const [activeModal, setActiveModal] = useState<string | null>(null);
     const [modalData, setModalData] = useState<any>(null);
+    const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
 
     const [ctx, setCtx] = useState<any>(null);
     const [isDirty, setIsDirty] = useState(false);
@@ -124,7 +125,7 @@ const App: React.FC = () => {
 
         if (file.name.toLowerCase().endsWith('.xer')) {
             try {
-                const parsedData = await parseXerFile(file);
+                const { data: parsedData, summary } = await parseXerFile(file);
                 // License Check for Import
                 if (adminConfig.enableLicensing && licenseInfo.status === 'trial' && parsedData.activities.length > TRIAL_LIMIT) {
                     setModalData({ msg: `Cannot import project. Contains ${parsedData.activities.length} activities. Trial limit is ${TRIAL_LIMIT}.` });
@@ -132,6 +133,8 @@ const App: React.FC = () => {
                     return;
                 }
                 setData(parsedData);
+                setImportSummary(summary);
+                setActiveModal('import_report');
                 setIsDirty(false);
             } catch (err) {
                 console.error(err);
@@ -941,6 +944,7 @@ const App: React.FC = () => {
             <BatchAssignModal isOpen={activeModal === 'batchRes'} onClose={() => setActiveModal(null)} resources={data.resources} onAssign={handleBatchAssign} lang={userSettings.language} />
             <AdminModal isOpen={activeModal === 'admin'} onClose={() => setActiveModal(null)} onSave={setAdminConfig} />
             <LicenseModal isOpen={activeModal === 'license'} onClose={() => setActiveModal(null)} licenseInfo={licenseInfo} onLicenseUpdate={setLicenseInfo} />
+            <ImportReportModal isOpen={activeModal === 'import_report'} summary={importSummary} onClose={() => setActiveModal(null)} />
         </div>
     );
 };

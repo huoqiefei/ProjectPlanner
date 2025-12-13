@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserSettings, PrintSettings, Resource, AdminConfig } from '../types';
+import { UserSettings, PrintSettings, Resource, AdminConfig, ImportSummary } from '../types';
 import { useTranslation } from '../utils/i18n';
 import AdminDashboard from './AdminDashboard';
 
@@ -88,6 +88,51 @@ export const ConfirmModal: React.FC<{ isOpen: boolean, msg: string, onConfirm: (
             <div className="flex items-center gap-3">
                 <div className="text-blue-600 text-2xl">?</div>
                 <div>{msg}</div>
+            </div>
+        </BaseModal>
+    );
+};
+
+export const ImportReportModal: React.FC<{ isOpen: boolean, summary: ImportSummary | null, onClose: () => void }> = ({ isOpen, summary, onClose }) => {
+    if (!summary) return null;
+    return (
+        <BaseModal isOpen={isOpen} title="Import Report" onClose={onClose} footer={
+            <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Close</button>
+        }>
+            <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b pb-2">
+                    <div className="text-green-600 text-2xl">✓</div>
+                    <div>
+                        <h4 className="font-bold text-slate-800">Import Successful</h4>
+                        <p className="text-slate-500">{summary.fileName}</p>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="bg-slate-50 p-2 rounded border">
+                        <span className="block text-slate-500 text-[10px] uppercase">Project</span>
+                        <span className="font-bold truncate block" title={summary.projectTitle}>{summary.projectTitle}</span>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded border">
+                         <span className="block text-slate-500 text-[10px] uppercase">WBS Nodes</span>
+                         <span className="font-bold">{summary.wbsCount}</span>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded border">
+                         <span className="block text-slate-500 text-[10px] uppercase">Activities</span>
+                         <span className="font-bold">{summary.activityCount}</span>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded border">
+                         <span className="block text-slate-500 text-[10px] uppercase">Relationships</span>
+                         <span className="font-bold">{summary.relationshipCount}</span>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded border">
+                         <span className="block text-slate-500 text-[10px] uppercase">Resources</span>
+                         <span className="font-bold">{summary.resourceCount}</span>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded border">
+                         <span className="block text-slate-500 text-[10px] uppercase">Calendars</span>
+                         <span className="font-bold">{summary.calendarCount}</span>
+                    </div>
+                </div>
             </div>
         </BaseModal>
     );
