@@ -1,5 +1,5 @@
 
-import { Activity, Calendar, ProjectData, ScheduleResult, Predecessor } from '../types';
+import { Activity, Calendar, ProjectData, ScheduleResult, Predecessor, ConstraintType } from '../types';
 
 // Helper to normalize time to Noon to avoid DST/Timezone issues
 function normalize(date: Date): Date {
@@ -70,6 +70,51 @@ export function calculateStart(finish: Date, duration: number, calendar: Calenda
     return addWorkingDays(finish, -(duration - 1), calendar);
 }
 
+// Logic to apply Start Constraints (Forward Pass)
+function applyStartConstraint(earlyStart: Date, act: Activity, calendar: Calendar): Date {
+    if (!act.constraintType || !act.constraintDate || act.constraintType === 'None') return earlyStart;
+    
+    const constraint = normalize(act.constraintDate);
+    const es = normalize(earlyStart);
+
+    switch(act.constraintType) {
+        case 'Start On': 
+        case 'Mandatory Start':
+            return constraint; // Forces date
+        case 'Start On or After':
+            return es > constraint ? es : constraint; // Max(ES, Constraint)
+        case 'Start On or Before':
+            // Note: Start On or Before usually affects Late Start logic in strict P6, 
+            // but in Forward Pass it acts as a cap if we wanted to show "impossible" schedules.
+            // For standard scheduling, it doesn't typically push Early Start *later*.
+            return es; 
+        default:
+            return es;
+    }
+}
+
+// Logic to apply Finish Constraints (Backward Pass)
+function applyFinishConstraint(lateFinish: Date, act: Activity, calendar: Calendar): Date {
+    if (!act.constraintType || !act.constraintDate || act.constraintType === 'None') return lateFinish;
+
+    const constraint = normalize(act.constraintDate);
+    const lf = normalize(lateFinish);
+
+    switch(act.constraintType) {
+        case 'Finish On':
+        case 'Mandatory Finish':
+            return constraint; // Forces date
+        case 'Finish On or Before':
+            return lf < constraint ? lf : constraint; // Min(LF, Constraint)
+        case 'Finish On or After':
+            // Affects Early dates logic usually or Late dates clamping
+            return lf; 
+        default:
+            return lf;
+    }
+}
+
+
 export function calculateSchedule(projectData: ProjectData): ScheduleResult {
     const { activities, meta } = projectData;
     if (!activities || activities.length === 0) return { activities: [], wbsMap: {} };
@@ -136,6 +181,12 @@ export function calculateSchedule(projectData: ProjectData): ScheduleResult {
                 calculatedEarlyStart = findNextWorkingDay(projectStartDate, calendar, 'forward');
             }
 
+            // APPLY CONSTRAINTS (Forward Pass)
+            calculatedEarlyStart = applyStartConstraint(calculatedEarlyStart, act, calendar);
+            
+            // Adjust to valid working day after constraint applied
+            calculatedEarlyStart = findNextWorkingDay(calculatedEarlyStart, calendar, 'forward');
+
             if (Math.abs(calculatedEarlyStart.getTime() - act.earlyStart.getTime()) > 1000) {
                 act.earlyStart = calculatedEarlyStart;
                 act.earlyFinish = calculateFinish(act.earlyStart, act.duration, calendar);
@@ -156,6 +207,10 @@ export function calculateSchedule(projectData: ProjectData): ScheduleResult {
     scheduledActivities.forEach(act => {
         act.lateFinish = new Date(maxProjectFinish);
         const calendar = getCalendar(act.calendarId, projectData);
+        // Apply Mandatory Finish here initially if present
+        if (act.constraintType === 'Mandatory Finish' && act.constraintDate) {
+             act.lateFinish = normalize(act.constraintDate);
+        }
         act.lateStart = calculateStart(act.lateFinish, act.duration, calendar);
     });
 
@@ -222,12 +277,13 @@ export function calculateSchedule(projectData: ProjectData): ScheduleResult {
             }
             
             // CRITICAL PATH FIX:
-            // If the calculated Late Finish is LATER than Project Finish (which can happen with open-ended tasks or SS/SF logic),
-            // clamp it to Project Finish. This ensures tasks that "could" end later but don't drive the project
-            // still respect the project's constraint boundary if they are meant to be critical.
+            // If the calculated Late Finish is LATER than Project Finish, clamp it to Project Finish.
             if (calculatedLateFinish > maxProjectFinish) {
                 calculatedLateFinish = new Date(maxProjectFinish);
             }
+
+            // APPLY CONSTRAINTS (Backward Pass)
+            calculatedLateFinish = applyFinishConstraint(calculatedLateFinish, act, calendar);
 
             if (Math.abs(calculatedLateFinish.getTime() - act.lateFinish.getTime()) > 1000) {
                  act.lateFinish = calculatedLateFinish;
@@ -243,7 +299,10 @@ export function calculateSchedule(projectData: ProjectData): ScheduleResult {
         const floatMs = act.lateFinish.getTime() - act.earlyFinish.getTime();
         act.totalFloat = Math.round(floatMs / (1000 * 60 * 60 * 24));
         if(Math.abs(act.totalFloat) < 0.1) act.totalFloat = 0;
+        
+        // Negative float is possible with constraints
         act.isCritical = act.totalFloat <= 0;
+        
         act.startDate = act.earlyStart;
         act.endDate = act.earlyFinish;
     });

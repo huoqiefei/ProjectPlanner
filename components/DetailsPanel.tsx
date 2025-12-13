@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Activity, Resource, Assignment, Calendar, Predecessor, UserSettings } from '../types';
+import { Activity, Resource, Assignment, Calendar, Predecessor, UserSettings, ConstraintType } from '../types';
 
 interface DetailsPanelProps {
     activity?: Activity;
@@ -109,6 +109,13 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ activity, resources, assign
         }
     };
 
+    const handleConstraintChange = (type: ConstraintType) => {
+        onUpdate(activity.id, 'constraintType', type);
+        // If switching to None, clear date
+        if (type === 'None') onUpdate(activity.id, 'constraintDate', undefined);
+        else if (!activity.constraintDate) onUpdate(activity.id, 'constraintDate', new Date().toISOString().split('T')[0]);
+    };
+
     const selResObj = resources.find(r => r.id === selRes);
 
     return (
@@ -170,17 +177,45 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ activity, resources, assign
                 {tab === 'Status' && (
                     <div className="grid grid-cols-4 gap-4">
                          <div className="border p-2 bg-slate-50">
-                            <label className="font-bold block border-b mb-2 pb-1 uppercase">Duration</label>
-                            <div className="grid grid-cols-2 gap-1">
-                                <label className="text-right text-slate-500 font-semibold">Original:</label> <span>{activity.duration}</span>
-                                <label className="text-right text-slate-500 font-semibold">Remaining:</label> <span>{activity.duration}</span>
-                            </div>
-                         </div>
-                         <div className="border p-2 bg-slate-50">
                             <label className="font-bold block border-b mb-2 pb-1 uppercase">Dates</label>
-                            <div className="grid grid-cols-2 gap-1">
+                            <div className="grid grid-cols-2 gap-1 mb-2">
                                 <label className="text-right text-slate-500 font-semibold">Start:</label> <span>{new Date(activity.startDate).toLocaleDateString()}</span>
                                 <label className="text-right text-slate-500 font-semibold">Finish:</label> <span>{new Date(activity.endDate).toLocaleDateString()}</span>
+                            </div>
+                         </div>
+                         <div className="border p-2 bg-slate-50 col-span-2">
+                            <label className="font-bold block border-b mb-2 pb-1 uppercase">Constraints</label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-slate-500 mb-0.5 font-semibold">Primary Constraint</label>
+                                    <select 
+                                        value={activity.constraintType || 'None'} 
+                                        onChange={e => handleConstraintChange(e.target.value as ConstraintType)} 
+                                        className="w-full border border-slate-300 px-1 py-1 bg-white"
+                                        style={{ fontSize: `${fontSizePx}px` }}
+                                    >
+                                        <option value="None">None</option>
+                                        <option value="Start On">Start On</option>
+                                        <option value="Start On or After">Start On or After</option>
+                                        <option value="Start On or Before">Start On or Before</option>
+                                        <option value="Finish On">Finish On</option>
+                                        <option value="Finish On or After">Finish On or After</option>
+                                        <option value="Finish On or Before">Finish On or Before</option>
+                                        <option value="Mandatory Start">Mandatory Start</option>
+                                        <option value="Mandatory Finish">Mandatory Finish</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-slate-500 mb-0.5 font-semibold">Constraint Date</label>
+                                    <input 
+                                        type="date" 
+                                        disabled={!activity.constraintType || activity.constraintType === 'None'}
+                                        value={activity.constraintDate ? new Date(activity.constraintDate).toISOString().split('T')[0] : ''} 
+                                        onChange={e => onUpdate(activity.id, 'constraintDate', e.target.value)} 
+                                        className="w-full border border-slate-300 px-1 py-1 disabled:bg-slate-100"
+                                        style={{ fontSize: `${fontSizePx}px` }}
+                                    />
+                                </div>
                             </div>
                          </div>
                          <div className="border p-2 bg-slate-50">

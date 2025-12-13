@@ -1,5 +1,5 @@
 
-import { ProjectData, Activity, WBSNode, Resource, Assignment, Calendar, Predecessor } from '../types';
+import { ProjectData, Activity, WBSNode, Resource, Assignment, Calendar, ConstraintType } from '../types';
 
 // XER Parsing Helpers
 const splitLine = (line: string) => line.split('\t');
@@ -10,10 +10,12 @@ interface XerTable {
     rows: Record<string, string>[];
 }
 
-const parseXerDate = (xerDate: string): Date => {
-    if (!xerDate) return new Date();
+const parseXerDate = (xerDate: string): Date | undefined => {
+    if (!xerDate) return undefined;
     // XER dates typically: 2023-10-30 08:00:00 or similar
-    return new Date(xerDate);
+    const d = new Date(xerDate);
+    if(isNaN(d.getTime())) return undefined;
+    return d;
 };
 
 // Map P6 Relationship Types to App Types
@@ -25,14 +27,48 @@ const mapRelType = (p6Type: string): 'FS' | 'SS' | 'FF' | 'SF' => {
     return 'FS'; // Default PR_FS
 };
 
+// Map P6 Constraint Types
+const mapConstraintType = (p6Type: string): ConstraintType => {
+    switch(p6Type) {
+        case 'CST_StartOn': return 'Start On';
+        case 'CST_StartOnOrAfter': return 'Start On or After';
+        case 'CST_StartOnOrBefore': return 'Start On or Before';
+        case 'CST_FinishOn': return 'Finish On';
+        case 'CST_FinishOnOrAfter': return 'Finish On or After';
+        case 'CST_FinishOnOrBefore': return 'Finish On or Before';
+        case 'CST_MandStart': return 'Mandatory Start';
+        case 'CST_MandFin': return 'Mandatory Finish';
+        default: return 'None';
+    }
+};
+
 export const parseXerFile = async (file: File): Promise<ProjectData> => {
-    const text = await file.text();
+    // 1. Encoding Handling (Fix for Garbled Chinese)
+    const buffer = await file.arrayBuffer();
+    let text = '';
+    
+    // Try UTF-8 First
+    try {
+        const decoder = new TextDecoder('utf-8', { fatal: true });
+        text = decoder.decode(buffer);
+    } catch (e) {
+        // If UTF-8 fails (common for P6 XER exports from China/Windows), try GBK
+        try {
+            const decoder = new TextDecoder('gbk');
+            text = decoder.decode(buffer);
+        } catch (e2) {
+            // Fallback to windows-1252 if GBK fails (unlikely for Chinese context but safe)
+            const decoder = new TextDecoder('windows-1252');
+            text = decoder.decode(buffer);
+        }
+    }
+
     const lines = text.split(/\r?\n/);
     
     const tables: Record<string, XerTable> = {};
     let currentTable: XerTable | null = null;
 
-    // 1. Parse Raw Data into Tables
+    // 2. Parse Raw Data into Tables
     for (const line of lines) {
         if (line.startsWith('%T')) {
             const tableName = splitLine(line)[1].trim();
@@ -50,7 +86,7 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
         }
     }
 
-    // 2. Extract Key Data (Using defaults if tables missing)
+    // 3. Extract Key Data (Using defaults if tables missing)
     const projectTable = tables['PROJECT']?.rows[0];
     const wbsTable = tables['PROJWBS']?.rows || [];
     const taskTable = tables['TASK']?.rows || [];
@@ -58,9 +94,8 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
     const rsrcTable = tables['RSRC']?.rows || [];
     const taskRsrcTable = tables['TASKRSRC']?.rows || [];
 
-    // 3. Convert WBS
+    // 4. Convert WBS
     // P6 WBS Hierarchy: proj_node_flag='Y' is root. parent_wbs_id links them.
-    const wbsMap = new Map<string, string>(); // Internal ID -> Display ID (or generated)
     const wbsNodes: WBSNode[] = [];
 
     // Find Project Root in WBS
@@ -68,10 +103,6 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
     
     // Helper to build hierarchy
     const processWbsNode = (row: any, parentId: string | null) => {
-        // P6 wbs_id is an integer (e.g. 12345), we need string IDs.
-        // We use the wbs_id as the key for mapping, but formatted for display if possible?
-        // Let's use the internal wbs_id as our app's ID to ensure uniqueness, 
-        // but name it using wbs_short_name if available.
         const id = row.wbs_id;
         const name = row.wbs_name;
         
@@ -92,8 +123,7 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
         wbsNodes.push({ id: 'WBS.1', name: 'Project Root', parentId: null });
     }
 
-    // 4. Convert Activities
-    // Map internal task_id to task_code (which is the user facing ID like "A1000")
+    // 5. Convert Activities
     const taskIdMap = new Map<string, string>(); // internal_id -> task_code
     
     const activities: Activity[] = taskTable.filter(r => r.proj_id === projectTable?.proj_id).map(row => {
@@ -103,17 +133,38 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
         const durationHrs = parseFloat(row.target_drtn_hr_cnt || '0');
         const duration = Math.round(durationHrs / 8); // Assume 8h days for now
 
+        // Constraint Handling
+        const constraintType = mapConstraintType(row.task_control_type_code);
+        let constraintDate: Date | undefined = undefined;
+        
+        // P6 Logic: If it's a constraint, the date is in target_start_date or target_end_date depending on type
+        // Usually Primary Constraint Date
+        if (constraintType !== 'None') {
+             // For Start constraints, use start date field. For Finish, use end date field.
+             // P6 often populates target_start_date for constraints.
+             if (constraintType.includes('Start')) {
+                 constraintDate = parseXerDate(row.target_start_date);
+             } else {
+                 constraintDate = parseXerDate(row.target_end_date) || parseXerDate(row.target_start_date);
+             }
+        }
+
         return {
             id: id,
             name: row.task_name,
             wbsId: row.wbs_id, // Links to WBS internal ID above
-            activityType: row.task_type === 'TT_Mile' ? 'Finish Milestone' : 'Task', // Simplified mapping
+            activityType: row.task_type === 'TT_Mile' ? 'Finish Milestone' : (row.task_type === 'TT_LOE' ? 'Task' : 'Task'), 
             duration: duration,
-            calendarId: 'default', // P6 calendars are complex, defaulting for MVP
-            startDate: parseXerDate(row.target_start_date || row.act_start_date),
-            endDate: parseXerDate(row.target_end_date || row.act_end_date),
+            calendarId: 'default', 
+            startDate: parseXerDate(row.target_start_date || row.act_start_date) || new Date(),
+            endDate: parseXerDate(row.target_end_date || row.act_end_date) || new Date(),
             predecessors: [], // Fill later
             budgetedCost: parseFloat(row.target_cost || '0'),
+            
+            // Constraints
+            constraintType: constraintType,
+            constraintDate: constraintDate,
+
             // Calculated fields defaults
             earlyStart: new Date(), earlyFinish: new Date(),
             lateStart: new Date(), lateFinish: new Date(),
@@ -122,7 +173,7 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
         };
     });
 
-    // 5. Convert Logic (Predecessors)
+    // 6. Convert Logic (Predecessors)
     predTable.forEach(row => {
         // Only map if both tasks exist in this project
         const succId = taskIdMap.get(row.task_id);
@@ -140,8 +191,7 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
         }
     });
 
-    // 6. Convert Resources
-    // P6 rsrc_id is internal. rsrc_short_name is code.
+    // 7. Convert Resources
     const rsrcIdMap = new Map<string, string>();
     const resources: Resource[] = rsrcTable.map(row => {
         const id = row.rsrc_short_name;
@@ -151,11 +201,11 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
             name: row.rsrc_name,
             type: row.rsrc_type === 'RT_Labor' ? 'Labor' : (row.rsrc_type === 'RT_Mat' ? 'Material' : 'Equipment'),
             unit: row.unit_id || 'hr',
-            maxUnits: parseFloat(row.target_qty_per_hr || '1') * 8 // Approximate max/day
+            maxUnits: parseFloat(row.target_qty_per_hr || '1') * 8 
         };
     });
 
-    // 7. Convert Assignments
+    // 8. Convert Assignments
     const assignments: Assignment[] = [];
     taskRsrcTable.forEach(row => {
         const actId = taskIdMap.get(row.task_id);
@@ -170,12 +220,14 @@ export const parseXerFile = async (file: File): Promise<ProjectData> => {
         }
     });
 
-    // 8. Construct Result
+    // 9. Construct Result
+    const projStartDate = projectTable?.plan_start_date ? parseXerDate(projectTable.plan_start_date) : new Date();
+
     return {
         meta: {
             title: projectTable?.proj_short_name || 'Imported Project',
             projectCode: projectTable?.proj_short_name || 'XER-IMP',
-            projectStartDate: projectTable?.plan_start_date ? parseXerDate(projectTable.plan_start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            projectStartDate: projStartDate ? projStartDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
             defaultCalendarId: 'default',
             activityIdPrefix: 'A',
             activityIdIncrement: 10,

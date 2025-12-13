@@ -17,6 +17,18 @@ export type ActivityType = 'Task' | 'Start Milestone' | 'Finish Milestone';
 
 export type RelationType = 'FS' | 'SS' | 'FF' | 'SF';
 
+// P6 Constraint Types
+export type ConstraintType = 
+    | 'None' 
+    | 'Start On' 
+    | 'Start On or After' 
+    | 'Start On or Before' 
+    | 'Finish On' 
+    | 'Finish On or After' 
+    | 'Finish On or Before' 
+    | 'Mandatory Start' 
+    | 'Mandatory Finish';
+
 export interface Predecessor {
     activityId: string;
     type: RelationType;
@@ -47,6 +59,11 @@ export interface Activity {
   startDate: Date;
   endDate: Date;
   predecessors: Predecessor[];
+  
+  // Constraints
+  constraintType?: ConstraintType;
+  constraintDate?: Date;
+
   isCritical?: boolean;
   earlyStart: Date;
   earlyFinish: Date;
