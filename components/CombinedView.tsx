@@ -15,8 +15,6 @@ interface CombinedViewProps {
     zoomLevel: 'day' | 'week' | 'month' | 'quarter' | 'year';
     onZoomChange: (z: any) => void;
     onDeleteItems: (ids: string[]) => void;
-    showRelations: boolean;
-    showCritical: boolean;
 }
 
 const formatDate = (date: Date): string => {
@@ -50,7 +48,7 @@ const ResizableHeader: React.FC<{
     return (
         <div 
             className="border-r border-slate-300 px-2 h-full flex items-center relative overflow-visible select-none flex-shrink-0" 
-            style={{ width, minWidth: width, justifyContent: align==='right'?'flex-end':align==='center'?'center':'flex-start' }}
+            style={{ width, justifyContent: align==='right'?'flex-end':align==='center'?'center':'flex-start' }}
             data-col={dataCol}
         >
             {children}
@@ -63,8 +61,7 @@ const ResizableHeader: React.FC<{
 };
 
 const CombinedView: React.FC<CombinedViewProps> = ({ 
-    projectData, schedule, wbsMap, onUpdate, selectedIds, onSelect, onCtx, userSettings, zoomLevel, onZoomChange,
-    showRelations, showCritical
+    projectData, schedule, wbsMap, onUpdate, selectedIds, onSelect, onCtx, userSettings, zoomLevel, onZoomChange 
 }) => {
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [colWidths, setColWidths] = useState({ id: 180, name: 250, duration: 60, start: 90, finish: 90, float: 50, preds: 150 });
@@ -218,7 +215,7 @@ const CombinedView: React.FC<CombinedViewProps> = ({
             {/* LEFT: TABLE */}
             <div className="flex flex-col border-r border-slate-300 bg-white flex-shrink-0" style={{ width: tableWidth + 2 }}>
                 {/* Header */}
-                <div className="p6-header bg-slate-100 border-b border-slate-300 font-bold text-slate-600 flex pr-4" style={{ height: headerHeight, width: '100%' }}>
+                <div className="p6-header bg-slate-100 border-b border-slate-300 font-bold text-slate-600 flex" style={{ height: headerHeight }}>
                     {isColVisible('id') && 
                         <ResizableHeader width={colWidths.id} onResize={w => setColWidths(p => ({...p, id: w}))} dataCol="id">
                             Activity ID
@@ -267,14 +264,14 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                         return (
                             <div 
                                 key={row.id} 
-                                className={`p6-row ${bgColor} ${textColor} hover:bg-blue-50 transition-colors cursor-pointer flex-shrink-0`}
+                                className={`p6-row ${bgColor} ${textColor} hover:bg-blue-50 transition-colors cursor-pointer`}
                                 style={{ height: ROW_HEIGHT }}
                                 onClick={(e) => handleRowClick(row.id, e)}
                                 onContextMenu={(e) => { e.preventDefault(); handleRowClick(row.id, e); onCtx({x:e.clientX, y:e.clientY, id:row.id, type:row.type}); }}
                             >
                                 {/* ID Column */}
                                 {isColVisible('id') && (
-                                    <div className="p6-cell flex items-center flex-shrink-0" style={{ width: colWidths.id, minWidth: colWidths.id, paddingLeft: `${row.depth * 16 + 4}px` }} data-col="id">
+                                    <div className="p6-cell flex items-center" style={{ width: colWidths.id, paddingLeft: `${row.depth * 16 + 4}px` }} data-col="id">
                                         {isWBS ? (
                                             <span onClick={(e) => toggleExpand(row.id, e)} className="mr-1 cursor-pointer font-mono text-[10px] w-4 text-center leading-none select-none text-slate-500">
                                                 {row.expanded ? '[-]' : '[+]'}
@@ -287,6 +284,7 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                                         {editing?.id === row.id && editing.field === 'id' ? (
                                             <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
                                         ) : (
+                                            /* Removed leading-none here to fix print clipping */
                                             <span onDoubleClick={() => startEdit(row.id, 'id', row.id)} className="truncate w-full">{row.id}</span>
                                         )}
                                     </div>
@@ -294,7 +292,7 @@ const CombinedView: React.FC<CombinedViewProps> = ({
 
                                 {/* Name Column */}
                                 {isColVisible('name') && (
-                                    <div className="p6-cell flex items-center flex-shrink-0" style={{ width: colWidths.name, minWidth: colWidths.name }} data-col="name">
+                                    <div className="p6-cell flex items-center" style={{ width: colWidths.name }} data-col="name">
                                         {editing?.id === row.id && editing.field === 'name' ? (
                                             <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
                                         ) : (
@@ -305,7 +303,7 @@ const CombinedView: React.FC<CombinedViewProps> = ({
 
                                 {/* Duration */}
                                 {isColVisible('duration') && (
-                                    <div className="p6-cell justify-center flex-shrink-0" style={{ width: colWidths.duration, minWidth: colWidths.duration }} data-col="duration">
+                                    <div className="p6-cell justify-center" style={{ width: colWidths.duration }} data-col="duration">
                                         {editing?.id === row.id && editing.field === 'duration' && !isWBS ? (
                                             <input autoFocus className="w-full text-center border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
                                         ) : (
@@ -316,28 +314,28 @@ const CombinedView: React.FC<CombinedViewProps> = ({
 
                                 {/* Start */}
                                 {isColVisible('start') && (
-                                    <div className="p6-cell justify-center text-[0.9em] flex-shrink-0" style={{ width: colWidths.start, minWidth: colWidths.start }} data-col="start">
+                                    <div className="p6-cell justify-center text-[0.9em]" style={{ width: colWidths.start }} data-col="start">
                                         {formatDate(row.startDate)}
                                     </div>
                                 )}
 
                                 {/* Finish */}
                                 {isColVisible('finish') && (
-                                    <div className="p6-cell justify-center text-[0.9em] flex-shrink-0" style={{ width: colWidths.finish, minWidth: colWidths.finish }} data-col="finish">
+                                    <div className="p6-cell justify-center text-[0.9em]" style={{ width: colWidths.finish }} data-col="finish">
                                         {formatDate(row.endDate)}
                                     </div>
                                 )}
 
                                 {/* Float */}
                                 {isColVisible('float') && (
-                                    <div className="p6-cell justify-center text-[0.9em] flex-shrink-0" style={{ width: colWidths.float, minWidth: colWidths.float }} data-col="float">
-                                        {!isWBS && Math.round(row.data.totalFloat)}
+                                    <div className="p6-cell justify-center text-[0.9em]" style={{ width: colWidths.float }} data-col="float">
+                                        {!isWBS && row.data.totalFloat}
                                     </div>
                                 )}
 
                                 {/* Predecessors */}
                                 {isColVisible('preds') && (
-                                    <div className="p6-cell text-[0.85em] flex-shrink-0" style={{ width: colWidths.preds, minWidth: colWidths.preds }} data-col="preds" onDoubleClick={() => !isWBS && startEdit(row.id, 'predecessors', null)}>
+                                    <div className="p6-cell text-[0.85em]" style={{ width: colWidths.preds }} data-col="preds" onDoubleClick={() => !isWBS && startEdit(row.id, 'predecessors', null)}>
                                         {editing?.id === row.id && editing.field === 'predecessors' ? (
                                             <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
                                         ) : (
@@ -361,8 +359,8 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                 activities={schedule}
                 projectStartDate={projectData.meta ? new Date(projectData.meta.projectStartDate) : new Date()} 
                 totalDuration={flatRows.length > 0 ? (flatRows[0].duration || 100) : 100} // Rough est
-                showRelations={showRelations}
-                showCritical={showCritical}
+                showRelations={true} // Controlled via toolbar in real app usually
+                showCritical={true}
                 showGrid={true}
                 zoomLevel={zoomLevel}
                 userSettings={userSettings}

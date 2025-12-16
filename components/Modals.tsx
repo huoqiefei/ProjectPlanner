@@ -1,7 +1,6 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { UserSettings, PrintSettings, AdminConfig, ImportSummary, ProjectData } from '../types';
+import { UserSettings, PrintSettings, Resource, AdminConfig } from '../types';
 import { useTranslation } from '../utils/i18n';
 import AdminDashboard from './AdminDashboard';
 
@@ -16,15 +15,15 @@ interface ModalProps {
 export const BaseModal: React.FC<ModalProps> = ({ isOpen, title, onClose, children, footer }) => {
     if (!isOpen) return null;
     return (
-        <div className="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white border border-slate-400 shadow-2xl w-96 max-w-[95vw] rounded-sm overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-                <div className="bg-blue-900 text-white px-3 py-1 text-sm font-bold flex justify-between items-center shadow-sm select-none flex-shrink-0">
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="bg-white border border-slate-400 shadow-2xl w-96 max-w-[95vw] rounded-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="bg-blue-900 text-white px-3 py-1 text-sm font-bold flex justify-between items-center shadow-sm select-none">
                     <span>{title}</span>
                     <button onClick={onClose} className="hover:text-red-300 font-bold">✕</button>
                 </div>
-                <div className="p-4 text-xs text-slate-700 overflow-y-auto custom-scrollbar">{children}</div>
+                <div className="p-4 text-xs text-slate-700">{children}</div>
                 {footer && (
-                    <div className="bg-slate-100 p-2 border-t flex justify-end gap-2 flex-shrink-0">
+                    <div className="bg-slate-100 p-2 border-t flex justify-end gap-2">
                         {footer}
                     </div>
                 )}
@@ -33,7 +32,7 @@ export const BaseModal: React.FC<ModalProps> = ({ isOpen, title, onClose, childr
     );
 };
 
-// Simple Markdown Parser
+// Simple Markdown Parser to avoid heavy dependencies
 const SimpleMarkdown: React.FC<{ content: string }> = ({ content }) => {
     if (!content) return <div>Loading...</div>;
     
@@ -58,27 +57,26 @@ const parseInline = (text: string) => {
     return parts.map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>;
         if (part.startsWith('`') && part.endsWith('`')) return <code key={i} className="bg-slate-100 px-1 rounded text-red-500">{part.slice(1, -1)}</code>;
-        if (part.startsWith('[') && part.includes('](')) {
-            const [label, url] = part.split('](');
-            return <a key={i} href={url.slice(0, -1)} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{label.slice(1)}</a>;
+        if (part.startsWith('[') && part.endsWith(')')) {
+            const matches = part.match(/^\[(.*?)\]\((.*?)\)$/);
+            if (matches) {
+                 return <a key={i} href={matches[2]} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{matches[1]}</a>;
+            }
         }
         return part;
     });
 };
 
-export const AlertModal: React.FC<{ isOpen: boolean, msg: string, onClose: () => void, lang?: 'en'|'zh' }> = ({ isOpen, msg, onClose, lang='en' }) => {
-    const { t } = useTranslation(lang as 'en' | 'zh');
-    return (
-        <BaseModal isOpen={isOpen} title={t('System')} onClose={onClose} footer={
-            <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('OK')}</button>
-        }>
-            <div className="flex items-center gap-3">
-                <div className="text-yellow-600 text-2xl">⚠</div>
-                <div>{msg}</div>
-            </div>
-        </BaseModal>
-    );
-};
+export const AlertModal: React.FC<{ isOpen: boolean, msg: string, onClose: () => void }> = ({ isOpen, msg, onClose }) => (
+    <BaseModal isOpen={isOpen} title="System Message" onClose={onClose} footer={
+        <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">OK</button>
+    }>
+        <div className="flex items-center gap-3">
+            <div className="text-yellow-600 text-2xl">⚠</div>
+            <div>{msg}</div>
+        </div>
+    </BaseModal>
+);
 
 export const ConfirmModal: React.FC<{ isOpen: boolean, msg: string, onConfirm: () => void, onCancel: () => void, lang?: 'en' | 'zh' }> = ({ isOpen, msg, onConfirm, onCancel, lang = 'en' }) => {
     const { t } = useTranslation(lang as 'en' | 'zh');
@@ -97,142 +95,75 @@ export const ConfirmModal: React.FC<{ isOpen: boolean, msg: string, onConfirm: (
     );
 };
 
-export const ImportReportModal: React.FC<{ isOpen: boolean, summary: ImportSummary | null, onClose: () => void }> = ({ isOpen, summary, onClose }) => {
-    if (!summary) return null;
-    return (
-        <BaseModal isOpen={isOpen} title="Import Report" onClose={onClose} footer={
-            <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Close</button>
-        }>
-            <div className="space-y-3">
-                <div className="flex items-center gap-2 border-b pb-2">
-                    <div className="text-green-600 text-2xl">✓</div>
-                    <div>
-                        <h4 className="font-bold text-slate-800">Import Successful</h4>
-                        <p className="text-slate-500">{summary.fileName}</p>
-                    </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>Activities: <strong>{summary.activityCount}</strong></div>
-                    <div>WBS Nodes: <strong>{summary.wbsCount}</strong></div>
-                    <div>Resources: <strong>{summary.resourceCount}</strong></div>
-                    <div>Calendars: <strong>{summary.calendarCount}</strong></div>
-                </div>
-            </div>
-        </BaseModal>
-    );
-};
+export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, customCopyright?: string }> = ({ isOpen, onClose, customCopyright }) => {
+    const [content, setContent] = useState('');
 
-export const ImportWizardModal: React.FC<{ 
-    isOpen: boolean, 
-    importData: { data: ProjectData, summary: ImportSummary } | null, 
-    onConfirm: () => void, 
-    onCancel: () => void, 
-    lang?: 'en'|'zh' 
-}> = ({ isOpen, importData, onConfirm, onCancel, lang='en' }) => {
-    const { t } = useTranslation(lang as 'en'|'zh');
-    
-    if (!isOpen || !importData) return null;
-    const { data, summary } = importData;
+    useEffect(() => {
+        if (isOpen) {
+            fetch('about.md')
+                .then(res => res.text())
+                .then(text => setContent(text))
+                .catch(() => setContent('# About\nCould not load about.md'));
+        }
+    }, [isOpen]);
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-2xl w-[600px] flex flex-col max-h-[80vh]">
-                <div className="bg-blue-900 text-white px-4 py-2 font-bold flex justify-between items-center">
-                    <span>{t('ImportWizard')}</span>
-                    <button onClick={onCancel} className="hover:text-red-300">✕</button>
-                </div>
-                
-                <div className="p-6 flex-grow overflow-y-auto">
-                    <div className="flex items-center gap-3 mb-6 bg-blue-50 p-4 rounded border border-blue-100">
-                        <div className="text-blue-600 text-3xl">📂</div>
-                        <div>
-                            <h4 className="font-bold text-slate-800 text-lg">{t('ImportProjectFound')}</h4>
-                            <p className="text-slate-600 font-bold">{summary.projectTitle}</p>
-                            <p className="text-slate-400 text-xs">{summary.fileName}</p>
-                        </div>
-                    </div>
-
-                    <h5 className="font-bold text-slate-700 border-b pb-1 mb-2">{t('ImportCalendarsFound')}</h5>
-                    <p className="text-xs text-slate-500 mb-2">{t('ImportNote')}</p>
-                    
-                    <div className="border rounded overflow-hidden">
-                        <table className="w-full text-xs text-left">
-                            <thead className="bg-slate-100 font-bold text-slate-600">
-                                <tr>
-                                    <th className="p-2 border-b">{t('CalName')}</th>
-                                    <th className="p-2 border-b text-center">{t('HoursDay')}</th>
-                                    <th className="p-2 border-b">{t('Type')}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.calendars.map(cal => (
-                                    <tr key={cal.id} className="border-b last:border-0 hover:bg-slate-50">
-                                        <td className="p-2">{cal.name} {cal.isDefault ? '(Default)' : ''}</td>
-                                        <td className="p-2 text-center font-mono font-bold text-blue-700">{cal.hoursPerDay}h</td>
-                                        <td className="p-2 text-slate-500">{cal.weekDays.filter(Boolean).length} days/week</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 border-t flex justify-end gap-2">
-                    <button onClick={onCancel} className="px-4 py-2 bg-white border border-slate-300 rounded text-slate-700 hover:bg-slate-100">
-                        {t('Cancel')}
-                    </button>
-                    <button onClick={onConfirm} className="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 shadow">
-                        {t('ImportAction')}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, customCopyright?: string, lang?: 'en'|'zh' }> = ({ isOpen, onClose, customCopyright, lang='en' }) => {
-    const { t } = useTranslation(lang as 'en' | 'zh');
-    return (
-        <BaseModal isOpen={isOpen} title={t('About')} onClose={onClose} footer={
+        <BaseModal isOpen={isOpen} title="About" onClose={onClose} footer={
             <div className="w-full flex justify-between items-center">
                  <span className="text-[10px] text-slate-400">{customCopyright || 'Powered by Planner.cn'}</span>
-                 <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('Close')}</button>
+                 <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Close</button>
             </div>
         }>
             <div className="max-h-[60vh] overflow-y-auto">
-                 <SimpleMarkdown content={`# Planner Web\n\n**${t('Version')}:** 1.0.0\n\nPlanner Web is a professional Project Management tool similar to Oracle Primavera P6.\n\n- CPM Scheduling\n- WBS Management\n- Resource Histograms\n- XER Import`} />
+                 <SimpleMarkdown content={content} />
             </div>
         </BaseModal>
     );
 };
 
-export const AdminModal: React.FC<{ isOpen: boolean, onClose: () => void, onSave: (c: AdminConfig) => void, lang?: 'en'|'zh' }> = ({ isOpen, onClose, onSave, lang='en' }) => {
-    return <AdminDashboard isOpen={isOpen} onClose={onClose} onSave={onSave} lang={lang} />; 
+export const AdminModal: React.FC<{ isOpen: boolean, onClose: () => void, onSave: (c: AdminConfig) => void }> = ({ isOpen, onClose, onSave }) => {
+    return <AdminDashboard isOpen={isOpen} onClose={onClose} onSave={onSave} />; 
 };
 
-// Localized Help Manual Generation
-const getManualContent = (t: any) => `# ${t('UserManual')}
+const DEFAULT_MANUAL = `# Planner Web - User Operation Manual
 
-## ${t('Manual_Start')}
-- ${t('CreateNew')}...
-- ${t('OpenExisting')}...
+## 1. Getting Started
+- Click **"Create New Project"** or **"File > New"**.
+- Open projects via **"File > Import"**.
 
-## ${t('Manual_WBS')}
-- Right click to add...
+## 2. WBS & Activities
+- **Right-click** to add WBS/Activities.
+- **Double-click** cells to edit.
+- **Delete** key to remove items.
 
-## ${t('Manual_Logic')}
-- Predecessors...
+## 3. Logic (CPM)
+- Enter predecessors (e.g., A100FS+5).
+- Use **Relationships** tab in details.
 
-## ${t('Manual_Res')}
-- Resources...
+## 4. Resources
+- Define resources in **Resources** view.
+- Assign in **Details > Resources**.
 
-## ${t('Manual_Print')}
-- Print Preview...
+## 5. Printing
+- **File > Print Preview**.
+- Select columns and paper size.
+- Auto-scales Gantt to fit.
 `;
 
-export const HelpModal: React.FC<{ isOpen: boolean, onClose: () => void, lang?: 'en'|'zh' }> = ({ isOpen, onClose, lang='en' }) => {
-    const { t } = useTranslation(lang as 'en' | 'zh');
-    const content = getManualContent(t);
+export const HelpModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ isOpen, onClose }) => {
+    const [content, setContent] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            fetch('manual.md')
+                .then(res => {
+                    if(!res.ok) throw new Error("File not found");
+                    return res.text();
+                })
+                .then(text => setContent(text))
+                .catch(() => setContent(DEFAULT_MANUAL));
+        }
+    }, [isOpen]);
 
     if(!isOpen) return null;
 
@@ -240,7 +171,7 @@ export const HelpModal: React.FC<{ isOpen: boolean, onClose: () => void, lang?: 
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
              <div className="bg-white w-[800px] h-[600px] flex flex-col rounded shadow-2xl overflow-hidden">
                  <div className="bg-blue-900 text-white p-3 font-bold flex justify-between shrink-0">
-                     <span>{t('Help')}</span>
+                     <span>Planner Web - Help & Documentation</span>
                      <button onClick={onClose} className="hover:text-red-300">✕</button>
                  </div>
                  
@@ -259,38 +190,257 @@ export const HelpModal: React.FC<{ isOpen: boolean, onClose: () => void, lang?: 
 }
 
 export const ColumnSetupModal: React.FC<{ isOpen: boolean, onClose: () => void, visibleColumns: string[], onSave: (cols: string[]) => void, lang?: 'en'|'zh' }> = ({ isOpen, onClose, visibleColumns, onSave, lang='en' }) => {
-    const { t } = useTranslation(lang as 'en'|'zh');
-    const [selected, setSelected] = useState<string[]>(visibleColumns);
-    const available = ['id', 'name', 'duration', 'start', 'finish', 'float', 'preds'];
+    const [selected, setSelected] = useState<string[]>([]);
+    const { t } = useTranslation(lang as 'en' | 'zh');
 
-    useEffect(() => { if(isOpen) setSelected(visibleColumns); }, [isOpen, visibleColumns]);
+    useEffect(() => {
+        if(isOpen) setSelected(visibleColumns);
+    }, [isOpen, visibleColumns]);
 
-    const toggle = (col: string) => {
-        if (selected.includes(col)) setSelected(selected.filter(c => c !== col));
-        else setSelected([...selected, col]);
-    };
+    const allCols = [
+        { id: 'id', label: 'Activity ID' },
+        { id: 'name', label: 'Activity Name' },
+        { id: 'duration', label: 'Duration' },
+        { id: 'start', label: 'Start Date' },
+        { id: 'finish', label: 'Finish Date' },
+        { id: 'float', label: 'Total Float' },
+        { id: 'preds', label: 'Predecessors' },
+        { id: 'budget', label: 'Budget Cost' }
+    ];
 
-    if (!isOpen) return null;
+    const available = allCols.filter(c => !selected.includes(c.id));
+    const visible = selected.map(id => allCols.find(c => c.id === id)).filter(c => c !== undefined) as typeof allCols;
+
+    const addToVisible = (id: string) => setSelected([...selected, id]);
+    const removeFromVisible = (id: string) => setSelected(selected.filter(x => x !== id));
+    
+    // Simple drag and drop replacement with click
+    const moveUp = (idx: number) => {
+        if(idx === 0) return;
+        const newSel = [...selected];
+        [newSel[idx-1], newSel[idx]] = [newSel[idx], newSel[idx-1]];
+        setSelected(newSel);
+    }
+
+    if(!isOpen) return null;
 
     return (
         <BaseModal isOpen={isOpen} title={t('ColumnsSetup')} onClose={onClose} footer={
-            <button onClick={() => { onSave(selected); onClose(); }} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('OK')}</button>
+            <>
+                <button onClick={onClose} className="px-3 py-1 bg-white border border-slate-300 rounded hover:bg-slate-50">{t('Cancel')}</button>
+                <button onClick={() => { onSave(selected); onClose(); }} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('Save')}</button>
+            </>
         }>
-            <div className="flex gap-4 h-60">
-                <div className="flex-1 border p-2 overflow-y-auto">
-                    <div className="font-bold text-xs mb-2">{t('AvailableCols')}</div>
-                    {available.filter(c => !selected.includes(c)).map(c => (
-                        <div key={c} onClick={() => toggle(c)} className="cursor-pointer hover:bg-blue-50 p-1 border-b border-transparent hover:border-blue-100">{c}</div>
-                    ))}
+            <div className="flex gap-4 h-64">
+                <div className="flex-1 flex flex-col">
+                    <div className="font-bold mb-1 border-b text-slate-600">{t('AvailableCols')}</div>
+                    <div className="flex-grow border bg-slate-50 overflow-y-auto p-1">
+                        {available.map(c => (
+                            <div key={c.id} className="p-1 hover:bg-blue-100 cursor-pointer text-slate-700" onClick={() => addToVisible(c.id)}>
+                                {c.label}
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 <div className="flex flex-col justify-center gap-2">
-                    <button className="text-blue-600 font-bold bg-slate-100 p-1 rounded">&gt;</button>
-                    <button className="text-blue-600 font-bold bg-slate-100 p-1 rounded">&lt;</button>
+                     <span className="text-slate-400">⇨</span>
                 </div>
-                <div className="flex-1 border p-2 overflow-y-auto">
-                    <div className="font-bold text-xs mb-2">{t('VisibleCols')}</div>
-                    {selected.map(c => (
-                        <div key={c} onClick={() => toggle(c)} className="cursor-pointer hover:bg-blue-50 p-1 border-b border-transparent hover:border-blue-100">{c}</div>
+                <div className="flex-1 flex flex-col">
+                    <div className="font-bold mb-1 border-b text-slate-600">{t('VisibleCols')}</div>
+                    <div className="flex-grow border bg-white overflow-y-auto p-1">
+                        {visible.map((c, i) => (
+                            <div key={c.id} className="p-1 hover:bg-blue-100 cursor-pointer flex justify-between group" onClick={() => removeFromVisible(c.id)}>
+                                <span>{c.label}</span>
+                                <div className="hidden group-hover:flex gap-1" onClick={e=>e.stopPropagation()}>
+                                    <button onClick={()=>moveUp(i)} className="text-[10px] bg-slate-200 px-1 rounded">▲</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </BaseModal>
+    );
+};
+
+export const UserSettingsModal: React.FC<{ isOpen: boolean, onClose: () => void, settings: UserSettings, onSave: (s: UserSettings) => void }> = ({ isOpen, onClose, settings, onSave }) => {
+    const [local, setLocal] = useState(settings);
+    const { t } = useTranslation(settings.language);
+    
+    useEffect(() => {
+        setLocal(settings);
+    }, [settings, isOpen]);
+
+    const handleSave = () => {
+        onSave(local);
+        onClose();
+    };
+
+    return (
+        <BaseModal isOpen={isOpen} title={t('UserPreferences')} onClose={onClose} footer={
+            <>
+                <button onClick={onClose} className="px-3 py-1 bg-white border border-slate-300 rounded hover:bg-slate-50">{t('Cancel')}</button>
+                <button onClick={handleSave} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('Save')}</button>
+            </>
+        }>
+            <div className="space-y-4">
+                <div>
+                    <h4 className="font-bold border-b mb-2 pb-1">{t('General')}</h4>
+                    <div className="space-y-2">
+                        <div>
+                            <label className="block mb-1">{t('DateFormat')}</label>
+                            <select className="w-full border p-1" value={local.dateFormat} onChange={e => setLocal({...local, dateFormat: e.target.value as any})}>
+                                <option value="YYYY-MM-DD">YYYY-MM-DD (2023-10-30)</option>
+                                <option value="DD-MMM-YYYY">DD-MMM-YYYY (30-Oct-2023)</option>
+                                <option value="MM/DD/YYYY">MM/DD/YYYY (10/30/2023)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block mb-1">{t('Language')}</label>
+                            <select className="w-full border p-1" value={local.language} onChange={e => setLocal({...local, language: e.target.value as any})}>
+                                <option value="en">English</option>
+                                <option value="zh">Chinese (Simplified)</option>
+                            </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="block mb-1">{t('InterfaceSize')}</label>
+                                <select className="w-full border p-1" value={local.uiSize} onChange={e => setLocal({...local, uiSize: e.target.value as any})}>
+                                    <option value="small">{t('Small')}</option>
+                                    <option value="medium">{t('Medium')}</option>
+                                    <option value="large">{t('Large')}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block mb-1">{t('CustomFontSize')}</label>
+                                <input 
+                                    type="number" 
+                                    className="w-full border p-1" 
+                                    value={local.uiFontPx || 13} 
+                                    onChange={e => setLocal({...local, uiFontPx: Number(e.target.value)})} 
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 className="font-bold border-b mb-2 pb-1">{t('GanttSettings')}</h4>
+                    <div className="space-y-2">
+                         <div>
+                             <label className="block mb-1 font-bold">{t('VerticalInterval')}</label>
+                             <select 
+                                 className="w-full border p-1"
+                                 value={local.gridSettings.verticalInterval || 'auto'}
+                                 onChange={e => setLocal({...local, gridSettings: {...local.gridSettings, verticalInterval: e.target.value as any}})}
+                             >
+                                 <option value="auto">{t('Auto')}</option>
+                                 <option value="month">{t('EveryMonth')}</option>
+                                 <option value="quarter">{t('EveryQuarter')}</option>
+                                 <option value="year">{t('EveryYear')}</option>
+                             </select>
+                         </div>
+
+                        <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={local.gridSettings.showVertical} onChange={e => setLocal({...local, gridSettings: {...local.gridSettings, showVertical: e.target.checked}})} />
+                            {t('ShowVertical')}
+                        </label>
+                        <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={local.gridSettings.showHorizontal} onChange={e => setLocal({...local, gridSettings: {...local.gridSettings, showHorizontal: e.target.checked}})} />
+                            {t('ShowHorizontal')}
+                        </label>
+                         <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={local.gridSettings.showWBSLines} onChange={e => setLocal({...local, gridSettings: {...local.gridSettings, showWBSLines: e.target.checked}})} />
+                            {t('ShowWBS')}
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </BaseModal>
+    );
+};
+
+export const PrintSettingsModal: React.FC<{ isOpen: boolean, onClose: () => void, onPrint: (s: PrintSettings) => void, lang?: 'en'|'zh' }> = ({ isOpen, onClose, onPrint, lang='en' }) => {
+    const [settings, setSettings] = useState<PrintSettings>({ 
+        paperSize: 'a3', 
+        orientation: 'landscape'
+    });
+    const { t } = useTranslation(lang as 'en' | 'zh');
+
+    return (
+        <BaseModal isOpen={isOpen} title={t('PageSetup')} onClose={onClose} footer={
+            <>
+                <button onClick={onClose} className="px-3 py-1 bg-white border border-slate-300 rounded hover:bg-slate-50">{t('Cancel')}</button>
+                <button onClick={() => { onPrint(settings); onClose(); }} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('PrintPreview')}</button>
+            </>
+        }>
+            <div className="space-y-4">
+                <div>
+                    <label className="block mb-1 font-bold">{t('PaperSize')}</label>
+                    <select className="w-full border p-1" value={settings.paperSize} onChange={e => setSettings({...settings, paperSize: e.target.value as any})}>
+                        <option value="a4">A4</option>
+                        <option value="a3">A3</option>
+                        <option value="a2">A2</option>
+                        <option value="a1">A1</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block mb-1 font-bold">{t('Orientation')}</label>
+                    <div className="flex gap-4 mt-1">
+                        <label className="flex items-center gap-1">
+                            <input type="radio" name="orient" checked={settings.orientation === 'landscape'} onChange={() => setSettings({...settings, orientation: 'landscape'})} /> {t('Landscape')}
+                        </label>
+                        <label className="flex items-center gap-1">
+                            <input type="radio" name="orient" checked={settings.orientation === 'portrait'} onChange={() => setSettings({...settings, orientation: 'portrait'})} /> {t('Portrait')}
+                        </label>
+                    </div>
+                </div>
+
+                <div className="text-[10px] text-slate-500 mt-2 bg-yellow-50 p-2 border border-yellow-200">
+                    {t('PrintNote')}
+                </div>
+            </div>
+        </BaseModal>
+    );
+};
+
+export const BatchAssignModal: React.FC<{ isOpen: boolean, onClose: () => void, onAssign: (resIds: string[], units: number) => void, resources: Resource[], lang?: 'en'|'zh' }> = ({ isOpen, onClose, onAssign, resources, lang='en' }) => {
+    const [selectedResIds, setSelectedResIds] = useState<string[]>([]);
+    const [units, setUnits] = useState(8);
+    const { t } = useTranslation(lang as 'en' | 'zh');
+
+    if (!isOpen) return null;
+
+    const toggleRes = (id: string) => {
+        if(selectedResIds.includes(id)) setSelectedResIds(selectedResIds.filter(x => x !== id));
+        else setSelectedResIds([...selectedResIds, id]);
+    };
+
+    const handleAssign = () => {
+        onAssign(selectedResIds, units);
+        onClose();
+        setSelectedResIds([]);
+    };
+
+    return (
+        <BaseModal isOpen={isOpen} title={t('BatchAssign')} onClose={onClose} footer={
+            <>
+                <button onClick={onClose} className="px-3 py-1 bg-white border border-slate-300 rounded hover:bg-slate-50">{t('Cancel')}</button>
+                <button onClick={handleAssign} disabled={selectedResIds.length === 0} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">{t('Assign')}</button>
+            </>
+        }>
+            <div className="flex flex-col h-64">
+                <div className="mb-2">
+                    <label className="block font-bold mb-1">{t('UnitsPerDay')}</label>
+                    <input type="number" className="border w-full p-1" value={units} onChange={e => setUnits(Number(e.target.value))} />
+                </div>
+                <div className="font-bold mb-1 border-b">{t('SelectRes')}:</div>
+                <div className="flex-grow overflow-y-auto border bg-slate-50 p-1">
+                    {resources.map(r => (
+                        <div key={r.id} className="flex items-center gap-2 p-1 hover:bg-white cursor-pointer" onClick={() => toggleRes(r.id)}>
+                            <input type="checkbox" checked={selectedResIds.includes(r.id)} onChange={() => {}} />
+                            <span className="flex-grow">{r.name} ({r.type})</span>
+                        </div>
                     ))}
                 </div>
             </div>
@@ -298,85 +448,52 @@ export const ColumnSetupModal: React.FC<{ isOpen: boolean, onClose: () => void, 
     );
 };
 
-export const UserSettingsModal: React.FC<{ isOpen: boolean, settings: UserSettings, onSave: (s: UserSettings) => void, onClose: () => void }> = ({ isOpen, settings, onSave, onClose }) => {
-    const [local, setLocal] = useState(settings);
-    
-    useEffect(() => { if(isOpen) setLocal(settings); }, [isOpen, settings]);
+export const UserStatsModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ isOpen, onClose }) => {
+    // Mock Data for Admin Statistics
+    const stats = {
+        totalUsers: 42,
+        activeToday: 5,
+        newThisWeek: 3,
+        rolesBreakdown: { trial: 30, authorized: 8, premium: 2, admin: 2 },
+        storageUsed: '1.2 GB'
+    };
 
-    if (!isOpen) return null;
     return (
-        <BaseModal isOpen={isOpen} title="User Preferences" onClose={onClose} footer={
-            <button onClick={() => { onSave(local); onClose(); }} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
-        }>
-           <div className="space-y-4">
-               <div>
-                   <label className="block font-bold mb-1">Language</label>
-                   <select className="w-full border p-1" value={local.language} onChange={e => setLocal({...local, language: e.target.value as any})}>
-                       <option value="en">English</option>
-                       <option value="zh">Chinese</option>
-                   </select>
-               </div>
-               <div>
-                   <label className="block font-bold mb-1">UI Size</label>
-                   <select className="w-full border p-1" value={local.uiSize} onChange={e => setLocal({...local, uiSize: e.target.value as any, uiFontPx: e.target.value === 'small' ? 13 : (e.target.value === 'medium' ? 15 : 18)})}>
-                       <option value="small">Small</option>
-                       <option value="medium">Medium</option>
-                       <option value="large">Large</option>
-                   </select>
-               </div>
-                <div>
-                   <label className="block font-bold mb-1">Date Format</label>
-                   <select className="w-full border p-1" value={local.dateFormat} onChange={e => setLocal({...local, dateFormat: e.target.value as any})}>
-                       <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                       <option value="DD-MMM-YYYY">DD-MMM-YYYY</option>
-                       <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                   </select>
-               </div>
-               <div className="border-t pt-2 space-y-2">
-                   <label className="flex items-center gap-2">
-                       <input type="checkbox" checked={local.gridSettings.showVertical} onChange={e => setLocal({...local, gridSettings: {...local.gridSettings, showVertical: e.target.checked}})} />
-                       Show Vertical Grid Lines
-                   </label>
-                   <label className="flex items-center gap-2">
-                       <input type="checkbox" checked={local.gridSettings.showHorizontal} onChange={e => setLocal({...local, gridSettings: {...local.gridSettings, showHorizontal: e.target.checked}})} />
-                       Show Horizontal Grid Lines
-                   </label>
-                   <label className="flex items-center gap-2">
-                       <input type="checkbox" checked={local.gridSettings.showWBSLines} onChange={e => setLocal({...local, gridSettings: {...local.gridSettings, showWBSLines: e.target.checked}})} />
-                       Show WBS Separators
-                   </label>
-               </div>
-           </div>
-        </BaseModal>
-    );
-};
-
-export const PrintSettingsModal: React.FC<{ isOpen: boolean, onClose: () => void, onPrint: (s: PrintSettings) => void, lang?: 'en'|'zh' }> = ({ isOpen, onClose, onPrint, lang='en' }) => {
-    const { t } = useTranslation(lang as 'en'|'zh');
-    const [settings, setSettings] = useState<PrintSettings>({ paperSize: 'a4', orientation: 'landscape', scalingMode: 'fit', scalePercent: 100 });
-
-    if (!isOpen) return null;
-    return (
-        <BaseModal isOpen={isOpen} title={t('PrintPreview')} onClose={onClose} footer={
-            <button onClick={() => { onPrint(settings); onClose(); }} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('OK')}</button>
+        <BaseModal isOpen={isOpen} title="User Statistics (Admin Only)" onClose={onClose} footer={
+             <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Close</button>
         }>
             <div className="space-y-4">
-                 <div>
-                   <label className="block font-bold mb-1">{t('PaperSize')}</label>
-                   <select className="w-full border p-1" value={settings.paperSize} onChange={e => setSettings({...settings, paperSize: e.target.value as any})}>
-                       <option value="a4">A4</option>
-                       <option value="a3">A3</option>
-                       <option value="a2">A2</option>
-                   </select>
-               </div>
-               <div>
-                   <label className="block font-bold mb-1">{t('Orientation')}</label>
-                   <select className="w-full border p-1" value={settings.orientation} onChange={e => setSettings({...settings, orientation: e.target.value as any})}>
-                       <option value="landscape">{t('Landscape')}</option>
-                       <option value="portrait">{t('Portrait')}</option>
-                   </select>
-               </div>
-               <div className="text-xs text-slate-500">{t('PrintNote')}</div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 p-3 rounded border border-blue-100 text-center">
+                        <div className="text-2xl font-bold text-blue-700">{stats.totalUsers}</div>
+                        <div className="text-xs text-slate-500 uppercase font-bold">Total Users</div>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded border border-green-100 text-center">
+                        <div className="text-2xl font-bold text-green-700">{stats.activeToday}</div>
+                        <div className="text-xs text-slate-500 uppercase font-bold">Active Today</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 className="font-bold text-slate-700 mb-2 border-b pb-1">User Groups Distribution</h4>
+                    <div className="space-y-2">
+                        {Object.entries(stats.rolesBreakdown).map(([role, count]) => (
+                            <div key={role} className="flex items-center justify-between text-sm">
+                                <span className="capitalize text-slate-600">{role}</span>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500" style={{ width: `${(count / stats.totalUsers) * 100}%` }}></div>
+                                    </div>
+                                    <span className="font-bold w-6 text-right">{count}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="text-xs text-slate-400 text-center pt-2">
+                    System Storage Used: {stats.storageUsed}
+                </div>
             </div>
         </BaseModal>
     );

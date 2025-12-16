@@ -2,35 +2,46 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { ProjectData, ScheduleResult, UserSettings, PrintSettings, AdminConfig, LicenseInfo, ImportSummary } from './types';
+import { ProjectData, ScheduleResult, UserSettings, PrintSettings, AdminConfig, User, FeatureKey } from './types';
 import { calculateSchedule } from './services/scheduler';
-import { getLicenseInfo, TRIAL_LIMIT } from './services/licenseService';
-import { parseXerFile } from './services/xerService';
-import { useTranslation } from './utils/i18n';
+import { authService } from './services/authService';
 import Toolbar from './components/Toolbar';
 import MenuBar from './components/MenuBar';
 import CombinedView from './components/CombinedView';
 import DetailsPanel from './components/DetailsPanel';
 import ResourcesPanel from './components/ResourcesPanel';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
-import LicenseModal from './components/LicenseModal';
-import BatchAssignModal from './components/BatchAssignModal';
-import { AlertModal, ConfirmModal, AboutModal, UserSettingsModal, PrintSettingsModal, AdminModal, HelpModal, ColumnSetupModal, ImportReportModal, ImportWizardModal } from './components/Modals';
+import AuthPage from './components/AuthPage';
+import { AlertModal, ConfirmModal, AboutModal, UserSettingsModal, PrintSettingsModal, BatchAssignModal, AdminModal, HelpModal, ColumnSetupModal, UserStatsModal } from './components/Modals';
+
+const LIMITS = {
+    trial: { activities: 20, resources: 10 },
+    authorized: { activities: 500, resources: 200 },
+    premium: { activities: Infinity, resources: Infinity },
+    admin: { activities: Infinity, resources: Infinity },
+    administrator: { activities: Infinity, resources: Infinity }
+};
+
+const getLimits = (role: string) => {
+    const r = role?.toLowerCase() || 'trial';
+    // Match partial keys for flexbility
+    if (r.includes('admin')) return LIMITS.admin;
+    if (r.includes('premium')) return LIMITS.premium;
+    if (r.includes('authorized')) return LIMITS.authorized;
+    return LIMITS.trial;
+};
 
 // --- APP ---
 const App: React.FC = () => {
+    // Auth State
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+
     const [data, setData] = useState<ProjectData | null>(null);
     const [schedule, setSchedule] = useState<ScheduleResult>({ activities: [], wbsMap: {} });
     const [selIds, setSelIds] = useState<string[]>([]);
     const [view, setView] = useState<'activities' | 'resources'>('activities');
     const [ganttZoom, setGanttZoom] = useState<'day' | 'week' | 'month' | 'quarter' | 'year'>('day');
-    
-    // License State
-    const [licenseInfo, setLicenseInfo] = useState<LicenseInfo>({ status: 'trial', machineId: '' });
-
-    // Gantt Visual State
-    const [showRelations, setShowRelations] = useState(true);
-    const [showCritical, setShowCritical] = useState(false);
     
     // View State
     const [showDetails, setShowDetails] = useState(true);
@@ -38,10 +49,6 @@ const App: React.FC = () => {
     // Modals State
     const [activeModal, setActiveModal] = useState<string | null>(null);
     const [modalData, setModalData] = useState<any>(null);
-    const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
-    
-    // New Import Wizard State
-    const [pendingImport, setPendingImport] = useState<{data: ProjectData, summary: ImportSummary} | null>(null);
 
     const [ctx, setCtx] = useState<any>(null);
     const [isDirty, setIsDirty] = useState(false);
@@ -55,8 +62,7 @@ const App: React.FC = () => {
         watermarkText: '',
         watermarkFontSize: 40,
         watermarkOpacity: 0.2,
-        ganttBarRatio: 0.35,
-        enableLicensing: true
+        ganttBarRatio: 0.35
     });
 
     const [userSettings, setUserSettings] = useState<UserSettings>({ 
@@ -68,41 +74,9 @@ const App: React.FC = () => {
         visibleColumns: ['id', 'name', 'duration', 'start', 'finish', 'float', 'preds'] 
     });
 
-    const { t } = useTranslation(userSettings.language);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Initial Load
-    useEffect(() => {
-        const saved = localStorage.getItem('planner_admin_config');
-        if(saved) {
-            try { setAdminConfig({ ...adminConfig, ...JSON.parse(saved) }); } catch(e) {}
-        }
-        // Load License
-        const lic = getLicenseInfo();
-        setLicenseInfo(lic);
-    }, []);
-
-    useEffect(() => { 
-        if(data) { 
-            const res = calculateSchedule(data);
-            setSchedule(res); 
-            setIsDirty(true); 
-        } 
-    }, [data]);
-
-    const checkLicenseLimit = (currentCount: number, adding: number = 1): boolean => {
-        if (!adminConfig.enableLicensing) return true; // BYPASS IF DISABLED BY ADMIN
-        if (licenseInfo.status === 'active') return true;
-        if (currentCount + adding > TRIAL_LIMIT) {
-            setModalData({ msg: `Trial Version Limited to ${TRIAL_LIMIT} Activities. Please Activate.` });
-            setActiveModal('alert');
-            setActiveModal('license');
-            return false;
-        }
-        return true;
-    };
-
-    const createNew = () => {
+    const createNew = useCallback(() => {
         const pCode = 'PROJ-01';
         const pName = 'New Project';
         const defCal = { id: 'cal-1', name: 'Standard 5-Day', isDefault:true, weekDays:[false,true,true,true,true,true,false], hoursPerDay:8, exceptions:[] };
@@ -114,71 +88,83 @@ const App: React.FC = () => {
             }
         });
         setIsDirty(false); setActiveModal(null);
+    }, []);
+
+    // Initial Load
+    useEffect(() => {
+        // 1. Load Admin Config
+        const savedConfig = localStorage.getItem('planner_admin_config');
+        if(savedConfig) {
+            try { setAdminConfig({ ...adminConfig, ...JSON.parse(savedConfig) }); } catch(e) {}
+        }
+
+        // 2. Check Auth Session
+        const user = authService.getCurrentUser();
+        if (user) {
+            setCurrentUser(user);
+        }
+        setAuthLoading(false);
+    }, []);
+
+    // Auto-create project on login if data is empty
+    useEffect(() => {
+        if (currentUser && !data) {
+            createNew();
+        }
+    }, [currentUser, data, createNew]);
+
+    useEffect(() => { 
+        if(data) { 
+            const res = calculateSchedule(data);
+            setSchedule(res); 
+            setIsDirty(true); 
+        } 
+    }, [data]);
+
+    const checkPermission = (feature: FeatureKey): boolean => {
+        if (!authService.hasPermission(currentUser, feature)) {
+            setModalData({ msg: `Access Denied. Feature '${feature}' requires ${currentUser?.role === 'trial' ? 'Authorized' : 'Premium'} or higher role.` });
+            setActiveModal('alert');
+            return false;
+        }
+        return true;
+    };
+
+    const handleLoginSuccess = (user: User) => {
+        setCurrentUser(user);
+        createNew(); // Ensure project is created immediately
+    };
+
+    const handleLogout = () => {
+        authService.logout();
+        setCurrentUser(null);
+        setData(null); // Clear project data on logout
     };
 
     const handleNew = () => {
         if(data && isDirty) {
-            setModalData({ msg: t('UnsavedPrompt'), action: createNew });
+            setModalData({ msg: "Unsaved changes. Continue?", action: createNew });
             setActiveModal('confirm');
         } else {
             createNew();
         }
     };
 
-    const handleOpen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleOpen = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
-        if (file.name.toLowerCase().endsWith('.xer')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
             try {
-                const result = await parseXerFile(file);
-                // License Check for Import
-                if (adminConfig.enableLicensing && licenseInfo.status === 'trial' && result.data.activities.length > TRIAL_LIMIT) {
-                    setModalData({ msg: `Cannot import project. Contains ${result.data.activities.length} activities. Trial limit is ${TRIAL_LIMIT}.` });
-                    setActiveModal('alert');
-                    return;
-                }
-                
-                // OPEN IMPORT WIZARD INSTEAD OF DIRECT SET
-                setPendingImport(result);
-                setActiveModal('import_wizard');
-                
-            } catch (err) {
-                console.error(err);
-                alert("Failed to parse XER file. Ensure it is a valid P6 export.");
-            }
-        } else {
-            // Standard JSON Import
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const json = JSON.parse(event.target?.result as string);
-                    if (adminConfig.enableLicensing && licenseInfo.status === 'trial' && json.activities?.length > TRIAL_LIMIT) {
-                        setModalData({ msg: `Cannot import project. Contains ${json.activities.length} activities. Trial limit is ${TRIAL_LIMIT}.` });
-                        setActiveModal('alert');
-                        return;
-                    }
-                    setData(json); setIsDirty(false);
-                } catch (err) { alert("Failed to parse JSON file."); }
-            };
-            reader.readAsText(file);
-        }
-        // Reset input
-        if(fileInputRef.current) fileInputRef.current.value = '';
-    };
-
-    // Confirm Import from Wizard
-    const handleConfirmImport = () => {
-        if (pendingImport) {
-            setData(pendingImport.data);
-            setImportSummary(pendingImport.summary);
-            setPendingImport(null);
-            setActiveModal('import_report');
-            setIsDirty(false);
-        }
+                const json = JSON.parse(event.target?.result as string);
+                setData(json); setIsDirty(false);
+            } catch (err) { alert("Failed to parse"); }
+        };
+        reader.readAsText(file);
     };
 
     const handleSave = () => {
+        if (!checkPermission('SAVE_PROJECT')) return;
         if (!data) return;
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const link = document.createElement('a');
@@ -205,15 +191,8 @@ const App: React.FC = () => {
         } else {
             if (field === 'predecessors') { 
                 const preds = Array.isArray(val) ? val : String(val).split(',').filter(x => x).map(s => {
-                    let m = s.trim().match(/^(.+?)(FS|SS|FF|SF)([+-]?\d+)?$/i);
-                    if (m) {
-                        return { activityId: m[1].trim(), type: (m[2].toUpperCase() as any), lag: parseInt(m[3] || '0') };
-                    }
-                    m = s.trim().match(/^(.+?)([+-]\d+)?$/);
-                    if (m) {
-                        return { activityId: m[1].trim(), type: 'FS', lag: parseInt(m[2] || '0') };
-                    }
-                    return null;
+                    const m = s.trim().match(/^([a-zA-Z0-9.\-_]+)(FS|SS|FF|SF)?([+-]?\d+)?$/);
+                    return m ? { activityId: m[1], type: (m[2] as any) || 'FS', lag: parseInt(m[3] || '0') } : null;
                 }).filter(x => x !== null) as any[];
                 setData(p => p ? { ...p, activities: p.activities.map(a => a.id === id ? { ...a, predecessors: preds } : a) } : null);
             } else {
@@ -278,15 +257,21 @@ const App: React.FC = () => {
         const { id, selIds: contextSelIds } = ctx; 
         const targets = (contextSelIds && contextSelIds.length > 0) ? contextSelIds : [id];
         setCtx(null);
-        if (!data) return;
+        if (!data || !currentUser) return;
+
+        // --- LIMIT CHECK FOR ACTIVITIES ---
+        const limits = getLimits(String(currentUser.role));
+        if ((act === 'addAct' || act === 'addActSame') && data.activities.length >= limits.activities) {
+            setModalData({ msg: `Plan limit reached. Your '${currentUser.role}' plan allows max ${limits.activities} activities. Upgrade to add more.` });
+            setActiveModal('alert');
+            return;
+        }
 
         if (act === 'renumber') {
             setModalData({ msg: `Renumber all activities?`, action: handleRenumberActivities });
             setActiveModal('confirm');
         }
         if (act === 'addAct' || act === 'addActSame') {
-            if (!checkLicenseLimit(data.activities.length, 1)) return;
-
             const wbsId = act === 'addActSame' ? data.activities.find(a => a.id === id)?.wbsId : id;
             if (!wbsId) return;
             const max = data.activities.reduce((m, a) => { const match = a.id.match(/(\d+)/); return match ? Math.max(m, parseInt(match[1])) : m; }, 1000);
@@ -299,7 +284,7 @@ const App: React.FC = () => {
         }
         if (act === 'delAct') handleDeleteItems(targets);
         if (act === 'delWBS') {
-            setModalData({ msg: t('DeleteWBSPrompt'), action: () => setData(p => p ? { ...p, wbs: p.wbs.filter(w => w.id !== id) } : null) });
+            setModalData({ msg: "Delete WBS and all its activities?", action: () => setData(p => p ? { ...p, wbs: p.wbs.filter(w => w.id !== id) } : null) });
             setActiveModal('confirm');
         }
         if (act === 'assignRes') {
@@ -310,6 +295,8 @@ const App: React.FC = () => {
 
     const handleBatchAssign = (resourceIds: string[], units: number) => {
         if (!data || !modalData) return;
+        if (!checkPermission('BATCH_ASSIGN')) return;
+
         const actIds = modalData.ids as string[];
         let newAssignments = [...data.assignments].filter(a => !(actIds.includes(a.activityId) && resourceIds.includes(a.resourceId)));
         actIds.forEach(aid => {
@@ -334,9 +321,8 @@ const App: React.FC = () => {
     const handleMenuAction = useCallback((action: string) => {
         switch(action) {
             case 'import': fileInputRef.current?.click(); break;
-            case 'export': handleSave(); break;
-            case 'print': setActiveModal('print'); break;
-            case 'activate': setActiveModal('license'); break;
+            case 'export': if(checkPermission('EXPORT_FILE')) handleSave(); break;
+            case 'print': if(checkPermission('PRINT')) setActiveModal('print'); break;
             case 'copy': 
                  if (selIds.length > 0 && data) {
                     if (view === 'resources') setClipboard({ ids: selIds, type: 'Resources' });
@@ -365,8 +351,6 @@ const App: React.FC = () => {
                         }).filter(x => x) as any;
                         setData(p => p ? { ...p, resources: [...p.resources, ...newResources] } : null);
                     } else if (clipboard.type === 'Activities') {
-                        if (!checkLicenseLimit(data.activities.length, clipboard.ids.length)) return;
-
                         const targetWbsId = selIds.length > 0 ? (data.activities.find(a => a.id === selIds[0])?.wbsId || data.wbs.find(w=>w.id === selIds[0])?.id) : (data.wbs.length > 0 ? data.wbs[0].id : null);
                         if (targetWbsId) {
                             const prefix = data.meta.activityIdPrefix || 'A';
@@ -395,9 +379,9 @@ const App: React.FC = () => {
             case 'settings': setActiveModal('user_settings'); break;
             case 'help': setActiveModal('help'); break;
             case 'about': setActiveModal('about'); break;
-            case 'admin': setActiveModal('admin'); break;
+            case 'admin': if(checkPermission('ADMIN_CONFIG')) setActiveModal('admin'); break;
         }
-    }, [data, selIds, view, clipboard, isDirty, licenseInfo]);
+    }, [data, selIds, view, clipboard, isDirty, currentUser]);
 
     // Global Shortcuts
     useEffect(() => {
@@ -416,21 +400,300 @@ const App: React.FC = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleMenuAction]);
 
-    // ... (Print Logic Omitted for brevity - same as before) ...
+    // --- ENHANCED PRINT LOGIC (P6 Style: Fit TimeScale + Readable Table) ---
     const executePrint = async (settings: PrintSettings) => {
-        // ... same print code ...
-        // For brevity in this response, assuming print logic remains identical 
-        // as it was not part of the requested change logic but just kept context.
-        // Re-insert full print function here in real implementation.
+        // ... (Existing Print Logic)
+        if (!checkPermission('PRINT')) return;
         if (view !== 'activities') setView('activities');
         await new Promise(r => setTimeout(r, 200));
+
         const original = document.querySelector('.combined-view-container');
-        if(!original) return;
-        // ... (existing print logic) ...
-        alert("Please implement full print logic or keep existing");
+        if (!original) {
+            alert("Could not find view to print.");
+            return;
+        }
+
+        // 0. Calculate Paper Dimensions & DPI
+        const dims: Record<string, {w: number, h: number}> = { 'a4': {w: 595.28, h: 841.89}, 'a3': {w: 841.89, h: 1190.55}, 'a2': {w: 1190.55, h: 1683.78}, 'a1': {w: 1683.78, h: 2383.94} };
+        const isLandscape = settings.orientation === 'landscape';
+        const pagePtW = isLandscape ? dims[settings.paperSize].h : dims[settings.paperSize].w;
+        const pagePtH = isLandscape ? dims[settings.paperSize].w : dims[settings.paperSize].h;
+        
+        // Convert pt to px for HTML2Canvas
+        const ptToPx = 1.3333; 
+        const marginPt = 20;
+        const marginPx = marginPt * ptToPx;
+        const pagePxW = pagePtW * ptToPx;
+        const contentPxW = pagePxW - (marginPx * 2);
+
+        // 1. Setup Staging Area (Clone)
+        const clone = original.cloneNode(true) as HTMLElement;
+        document.body.appendChild(clone);
+        
+        clone.style.position = 'absolute';
+        clone.style.top = '-10000px';
+        clone.style.left = '-10000px';
+        clone.style.height = 'auto'; 
+        clone.style.width = 'fit-content';
+        clone.style.overflow = 'visible';
+        clone.style.backgroundColor = 'white';
+        clone.style.border = 'none'; 
+        clone.style.padding = '0';
+
+        // 2. Strict Column Hiding & Width Calc
+        const allowedCols = userSettings.visibleColumns;
+        const headerCells = clone.querySelectorAll('.p6-header > div');
+        let tableWidth = 0;
+        
+        const isColVisible = (el: Element) => {
+            const colId = el.getAttribute('data-col');
+            return colId && allowedCols.includes(colId);
+        };
+
+        headerCells.forEach((cell: any) => {
+            if(isColVisible(cell)) {
+                const w = parseFloat(cell.style.width || '0');
+                if(w>0) tableWidth += w;
+            } else {
+                cell.style.display = 'none';
+            }
+        });
+
+        const cells = clone.querySelectorAll('.p6-cell');
+        cells.forEach((cell: any) => {
+            if(!isColVisible(cell)) cell.style.display = 'none';
+            else {
+                cell.style.display = 'flex'; 
+                cell.style.alignItems = 'center'; 
+                cell.style.overflow = 'visible'; 
+                cell.style.paddingTop = '0px'; 
+                cell.style.paddingBottom = '0px'; 
+                const span = cell.querySelector('span');
+                if(span) { 
+                    span.style.textOverflow = 'clip'; 
+                    span.style.overflow = 'visible'; 
+                    span.style.whiteSpace = 'nowrap';
+                    span.style.lineHeight = 'normal'; 
+                    span.style.height = 'auto'; 
+                }
+            }
+        });
+
+        const tableWrapper = clone.querySelector('.border-r.flex-col') as HTMLElement; 
+        if(tableWrapper) {
+            tableWrapper.style.width = `${tableWidth}px`;
+            tableWrapper.style.minWidth = `${tableWidth}px`;
+            tableWrapper.style.flexShrink = '0';
+        }
+
+        // --- 3. SMART SCALING: GANTT CHART ---
+        const zoomMap: Record<string, number> = { day: 40, week: 15, month: 5, quarter: 2, year: 0.5 };
+        const px = zoomMap[ganttZoom] || 40;
+
+        let maxEnd = new Date(data!.meta.projectStartDate).getTime();
+        if (schedule.activities.length > 0) {
+            schedule.activities.forEach(a => {
+                if (a.endDate.getTime() > maxEnd) maxEnd = a.endDate.getTime();
+            });
+        }
+        const start = new Date(data!.meta.projectStartDate).getTime();
+        const diffDays = Math.max(1, (maxEnd - start) / (1000 * 60 * 60 * 24));
+        const originalGanttContentWidth = (diffDays + 20) * px; 
+
+        const availableGanttPxW = Math.max(200, contentPxW - tableWidth); 
+        
+        const allSvgs = clone.querySelectorAll('svg');
+        
+        if (tableWidth < contentPxW) {
+            allSvgs.forEach((svg: any) => {
+                const currentH = svg.getAttribute('height') || '100';
+                svg.setAttribute('viewBox', `0 0 ${originalGanttContentWidth} ${currentH}`);
+                svg.setAttribute('width', `${availableGanttPxW}px`); 
+                svg.setAttribute('preserveAspectRatio', 'none'); 
+            });
+
+            const ganttWrappers = clone.querySelectorAll('.gantt-component, .gantt-header-wrapper, .gantt-body-wrapper');
+            ganttWrappers.forEach((el: any) => {
+                el.style.width = `${availableGanttPxW}px`;
+                el.style.minWidth = `${availableGanttPxW}px`;
+                el.style.overflow = 'hidden';
+            });
+        } else {
+             allSvgs.forEach((svg: any) => {
+                svg.setAttribute('width', `${Math.max(400, originalGanttContentWidth)}px`);
+             });
+        }
+
+        // --- 4. SEPARATE HEADERS FROM BODY ---
+        const tableHeader = clone.querySelector('.p6-header') as HTMLElement;
+        const tableBody = clone.querySelector('.p6-table-body') as HTMLElement;
+        
+        const ganttHeader = clone.querySelector('.gantt-header-wrapper') as HTMLElement;
+        const ganttBody = clone.querySelector('.gantt-body-wrapper') as HTMLElement;
+
+        if (!tableHeader || !tableBody || !ganttHeader || !ganttBody) {
+            document.body.removeChild(clone);
+            alert("Print Error: Could not parse view structure.");
+            return;
+        }
+
+        const finalTotalWidth = tableWidth + (tableWidth < contentPxW ? availableGanttPxW : Math.max(400, originalGanttContentWidth));
+
+        const headerAssembly = document.createElement('div');
+        headerAssembly.style.display = 'flex';
+        headerAssembly.style.width = `${finalTotalWidth}px`;
+        headerAssembly.style.backgroundColor = 'white';
+        headerAssembly.style.borderBottom = '1px solid #cbd5e1';
+        
+        tableHeader.style.width = `${tableWidth}px`;
+        tableHeader.style.flexShrink = '0';
+        headerAssembly.appendChild(tableHeader);
+        
+        ganttHeader.style.width = `${tableWidth < contentPxW ? availableGanttPxW : originalGanttContentWidth}px`;
+        ganttHeader.style.border = 'none'; 
+        headerAssembly.appendChild(ganttHeader);
+
+        const bodyAssembly = document.createElement('div');
+        bodyAssembly.style.display = 'flex';
+        bodyAssembly.style.width = `${finalTotalWidth}px`;
+        bodyAssembly.style.backgroundColor = 'white';
+        
+        tableBody.style.width = `${tableWidth}px`;
+        tableBody.style.height = 'auto';
+        tableBody.style.overflow = 'visible';
+        tableBody.style.flexShrink = '0';
+        bodyAssembly.appendChild(tableBody);
+
+        ganttBody.style.width = `${tableWidth < contentPxW ? availableGanttPxW : originalGanttContentWidth}px`;
+        ganttBody.style.height = 'auto';
+        ganttBody.style.overflow = 'visible';
+        bodyAssembly.appendChild(ganttBody);
+
+        const tableRows = tableBody.querySelectorAll('.p6-row');
+        tableRows.forEach((row: any) => {
+            const h = row.style.height; 
+            if(h) {
+                row.style.minHeight = h;
+                row.style.height = 'auto'; 
+                row.style.overflow = 'visible'; 
+            }
+        });
+
+        const staging = document.createElement('div');
+        staging.style.position = 'absolute';
+        staging.style.top = '-10000px';
+        staging.style.left = '-10000px';
+        staging.style.backgroundColor = 'white';
+        staging.appendChild(headerAssembly);
+        staging.appendChild(bodyAssembly);
+        document.body.appendChild(staging);
+
+        try {
+            const captureScale = 3; 
+            const headerCanvas = await html2canvas(headerAssembly, { scale: captureScale, logging: false });
+            const bodyCanvas = await html2canvas(bodyAssembly, { scale: captureScale, logging: false });
+            
+            document.body.removeChild(clone);
+            document.body.removeChild(staging);
+
+            const pdf = new jsPDF(isLandscape ? 'l' : 'p', 'pt', [pagePtW, pagePtH]);
+            const pdfContentWidth = pagePtW - (marginPt * 2);
+            const fitRatio = pdfContentWidth / headerCanvas.width;
+            
+            const pdfHeaderH = headerCanvas.height * fitRatio;
+            const pdfBodyTotalH = bodyCanvas.height * fitRatio;
+            
+            let yOffset = 0; 
+            let heightLeftPts = pdfBodyTotalH; 
+
+            const pdfContentHeight = pagePtH - (marginPt * 2);
+
+            let wmDataUrl = '';
+            if (adminConfig.enableWatermark) {
+                const wmCanvas = document.createElement('canvas');
+                wmCanvas.width = pagePtW; 
+                wmCanvas.height = pagePtH;
+                const ctx = wmCanvas.getContext('2d');
+                if (ctx) {
+                    ctx.save();
+                    ctx.translate(pagePtW/2, pagePtH/2);
+                    ctx.rotate(-30 * Math.PI / 180);
+                    ctx.translate(-pagePtW/2, -pagePtH/2);
+                    ctx.globalAlpha = adminConfig.watermarkOpacity || 0.2;
+                    const imgSource = adminConfig.watermarkImage || adminConfig.appLogo;
+                    if (imgSource) {
+                        const img = new Image();
+                        img.src = imgSource;
+                        await new Promise(r => img.onload = r);
+                        const aspect = img.width / img.height;
+                        const drawW = Math.min(400, img.width);
+                        const drawH = drawW / aspect;
+                        ctx.drawImage(img, (pagePtW - drawW)/2, (pagePtH - drawH)/2, drawW, drawH);
+                    }
+                    if (adminConfig.watermarkText || (!imgSource && adminConfig.copyrightText)) {
+                        const text = adminConfig.watermarkText || adminConfig.appName;
+                        ctx.font = `bold ${adminConfig.watermarkFontSize || 40}px Arial`;
+                        ctx.fillStyle = '#94a3b8';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        const textY = imgSource ? (pagePtH/2 + 150) : pagePtH/2;
+                        ctx.fillText(text, pagePtW/2, textY);
+                    }
+                    ctx.restore();
+                    wmDataUrl = wmCanvas.toDataURL('image/png');
+                }
+            }
+
+            while (heightLeftPts > 0) {
+                pdf.addImage(headerCanvas.toDataURL('image/jpeg', 0.9), 'JPEG', marginPt, marginPt, pdfContentWidth, pdfHeaderH);
+                pdf.setDrawColor(203, 213, 225); 
+                pdf.rect(marginPt, marginPt, pdfContentWidth, pdfHeaderH);
+
+                const availableHPts = pdfContentHeight - pdfHeaderH - 10;
+                const sliceHPts = Math.min(heightLeftPts, availableHPts);
+                const sliceHPx = sliceHPts / fitRatio;
+                
+                const sliceCanvas = document.createElement('canvas');
+                sliceCanvas.width = bodyCanvas.width;
+                sliceCanvas.height = sliceHPx; 
+                
+                const sCtx = sliceCanvas.getContext('2d');
+                if (sCtx) {
+                    sCtx.drawImage(
+                        bodyCanvas, 
+                        0, yOffset, bodyCanvas.width, sliceHPx, 
+                        0, 0, sliceCanvas.width, sliceCanvas.height 
+                    );
+                    pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.9), 'JPEG', marginPt, marginPt + pdfHeaderH, pdfContentWidth, sliceHPts);
+                    pdf.rect(marginPt, marginPt + pdfHeaderH, pdfContentWidth, sliceHPts);
+                }
+
+                if (wmDataUrl) {
+                    pdf.addImage(wmDataUrl, 'PNG', 0, 0, pagePtW, pagePtH, undefined, 'FAST');
+                }
+
+                heightLeftPts -= sliceHPts;
+                yOffset += sliceHPx;
+
+                const pageNum = pdf.getNumberOfPages();
+                pdf.setFontSize(9);
+                pdf.setTextColor(100);
+                pdf.text(`Page ${pageNum}`, pagePtW - marginPt, pagePtH - 10, { align: 'right' });
+                pdf.text(adminConfig.appName, marginPt, pagePtH - 10, { align: 'left' });
+
+                if (heightLeftPts > 1) pdf.addPage();
+            }
+
+            window.open(pdf.output('bloburl'), '_blank');
+
+        } catch (e) {
+            console.error("Print Error", e);
+            alert("Print generation failed. Please try again.");
+            if(document.body.contains(clone)) document.body.removeChild(clone);
+            if(document.body.contains(staging)) document.body.removeChild(staging);
+        }
     };
 
-    // ... (Context Menu Omitted for brevity - same as before) ...
     const ContextMenu = ({ data, onClose, onAction }: any) => {
         if (!data) return null;
         const { x, y, type } = data;
@@ -470,98 +733,44 @@ const App: React.FC = () => {
         );
     };
 
+    if (authLoading) return <div className="h-screen w-screen flex items-center justify-center bg-slate-100">Loading...</div>;
+
+    if (!currentUser) {
+        return <AuthPage onLoginSuccess={handleLoginSuccess} adminConfig={adminConfig} />;
+    }
+
     if (!data) return (
-        <div className="flex h-full w-full items-center justify-center bg-slate-900 relative overflow-hidden font-sans">
-             <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
-             
-             {/* Scaled down Landing Page (~80%) */}
-             <div className="z-10 bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center gap-5 max-w-sm w-full border border-slate-700">
-                <div className="text-center flex flex-col items-center">
-                    {adminConfig.appLogo ? (
-                        <img src={adminConfig.appLogo} alt="Logo" className="h-16 mb-2 object-contain" />
-                    ) : (
-                        <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-700 tracking-tighter" 
-                            style={{ 
-                                textShadow: '2px 2px 0px #e2e8f0', 
-                                fontFamily: '"Segoe UI", Roboto, "Helvetica Neue", sans-serif',
-                                transform: 'rotate(-2deg)'
-                            }}>
-                            {adminConfig.appName.split(' ')[0]}
-                        </h1>
-                    )}
-                    <p className="text-slate-400 text-xs mt-2 font-semibold tracking-widest uppercase">{adminConfig.appName}</p>
-                    <div className="mt-3 text-[10px] font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full inline-block">
-                        {adminConfig.copyrightText}
-                    </div>
-                </div>
-
-                <div className="flex flex-col gap-3 w-full">
-                    <button onClick={createNew} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-bold shadow-lg transition-all hover:scale-[1.02] flex items-center justify-center gap-2 text-base">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-                        {t('CreateNew')}
-                    </button>
-                    <button onClick={() => fileInputRef.current?.click()} className="w-full bg-white hover:bg-slate-50 text-slate-700 py-2.5 rounded-lg font-bold border-2 border-slate-200 transition-colors flex items-center justify-center gap-2 text-base">
-                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>
-                        {t('OpenExisting')}
-                    </button>
-                </div>
-
-                <div className="pt-3 border-t w-full text-center text-[10px] text-slate-400">
-                    <span>{t('Version')} 1.0.0 &copy; {new Date().getFullYear()}</span>
-                </div>
-             </div>
-             <input type="file" ref={fileInputRef} onChange={handleOpen} className="hidden" accept=".json,.xer" />
-             <AdminModal isOpen={activeModal === 'admin'} onClose={() => setActiveModal(null)} onSave={setAdminConfig} lang={userSettings.language} />
-             {/* Import Wizard also needs to be available here in case file is opened from Landing Page */}
-             <ImportWizardModal 
-                isOpen={activeModal === 'import_wizard'} 
-                importData={pendingImport} 
-                onConfirm={handleConfirmImport} 
-                onCancel={() => { setPendingImport(null); setActiveModal(null); }}
-                lang={userSettings.language}
-             />
+        <div className="h-full w-full flex items-center justify-center bg-slate-50">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
     );
 
     return (
         <div className="flex flex-col h-full bg-slate-100" onClick={() => setCtx(null)}>
             <div className="h-8 flex-shrink-0 relative z-50">
-                <MenuBar onAction={handleMenuAction} lang={userSettings.language} uiSize={userSettings.uiSize} uiFontPx={userSettings.uiFontPx} />
+                <MenuBar onAction={handleMenuAction} lang={userSettings.language} uiSize={userSettings.uiSize} uiFontPx={userSettings.uiFontPx} currentUser={currentUser} />
             </div>
             
-            <div className="relative">
-                <Toolbar 
-                    onNew={handleNew} 
-                    onOpen={(e) => handleOpen(e)}
-                    onSave={handleSave}
-                    onPrint={() => setActiveModal('print')} 
-                    onSettings={() => setActiveModal('project_settings')} 
-                    title={data.meta.title} 
-                    isDirty={isDirty}
-                    uiFontPx={userSettings.uiFontPx}
-                    showRelations={showRelations}
-                    onToggleRelations={() => setShowRelations(!showRelations)}
-                    showCritical={showCritical}
-                    onToggleCritical={() => setShowCritical(!showCritical)}
-                />
-                {adminConfig.enableLicensing && licenseInfo.status === 'trial' && (
-                    <div className="absolute right-0 top-0 h-full flex items-center pr-2">
-                        <button 
-                            onClick={() => setActiveModal('license')}
-                            className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded shadow-sm animate-pulse"
-                        >
-                            Trial Mode ({data.activities.length}/{TRIAL_LIMIT}) - Activate
-                        </button>
-                    </div>
-                )}
-            </div>
-            <input type="file" ref={fileInputRef} onChange={handleOpen} className="hidden" accept=".json,.xer" />
+            <Toolbar 
+                onNew={handleNew} 
+                onOpen={(e) => handleOpen(e)}
+                onSave={handleSave}
+                onPrint={() => checkPermission('PRINT') && setActiveModal('print')} 
+                onSettings={() => setActiveModal('project_settings')} 
+                title={data.meta.title} 
+                isDirty={isDirty}
+                uiFontPx={userSettings.uiFontPx}
+                currentUser={currentUser}
+                onLogout={handleLogout}
+                onUserStats={() => setActiveModal('user_stats')}
+            />
+            <input type="file" ref={fileInputRef} onChange={handleOpen} className="hidden" accept=".json" />
 
             <div className="flex-grow flex flex-col overflow-hidden">
                 <div className="bg-slate-300 border-b flex px-2 pt-1 gap-1 shrink-0" style={{ fontSize: `${userSettings.uiFontPx || 13}px` }}>
                     {['Activities', 'Resources'].map(v => (
                         <button key={v} onClick={() => setView(v.toLowerCase() as any)} className={`px-4 py-1 font-bold rounded-t ${view === v.toLowerCase() ? 'bg-white text-blue-900' : 'text-slate-600 hover:bg-slate-200'}`}>
-                            {t(v as any)}
+                            {v}
                         </button>
                     ))}
                 </div>
@@ -581,8 +790,6 @@ const App: React.FC = () => {
                                 zoomLevel={ganttZoom}
                                 onZoomChange={setGanttZoom}
                                 onDeleteItems={handleDeleteItems}
-                                showRelations={showRelations}
-                                showCritical={showCritical}
                             />
                         </div>
                         <DetailsPanel 
@@ -608,12 +815,13 @@ const App: React.FC = () => {
                         userSettings={userSettings}
                         selectedIds={selIds}
                         onSelect={(ids) => setSelIds(ids)}
+                        userRole={String(currentUser.role)}
                     />
                 )}
             </div>
 
             <ContextMenu data={ctx} onClose={() => setCtx(null)} onAction={handleCtxAction} />
-            <AlertModal isOpen={activeModal === 'alert'} msg={modalData?.msg} onClose={() => setActiveModal(null)} lang={userSettings.language} />
+            <AlertModal isOpen={activeModal === 'alert'} msg={modalData?.msg} onClose={() => setActiveModal(null)} />
             <ConfirmModal 
                 isOpen={activeModal === 'confirm'} 
                 msg={modalData?.msg} 
@@ -621,23 +829,15 @@ const App: React.FC = () => {
                 onCancel={() => setActiveModal(null)}
                 lang={userSettings.language} 
             />
-            <AboutModal isOpen={activeModal === 'about'} onClose={() => setActiveModal(null)} customCopyright={adminConfig.copyrightText} lang={userSettings.language} />
-            <HelpModal isOpen={activeModal === 'help'} onClose={() => setActiveModal(null)} lang={userSettings.language} />
+            <AboutModal isOpen={activeModal === 'about'} onClose={() => setActiveModal(null)} customCopyright={adminConfig.copyrightText} />
+            <HelpModal isOpen={activeModal === 'help'} onClose={() => setActiveModal(null)} />
             <UserSettingsModal isOpen={activeModal === 'user_settings'} settings={userSettings} onSave={setUserSettings} onClose={() => setActiveModal(null)} />
             <PrintSettingsModal isOpen={activeModal === 'print'} onClose={() => setActiveModal(null)} onPrint={executePrint} lang={userSettings.language} />
             <ColumnSetupModal isOpen={activeModal === 'columns'} onClose={() => setActiveModal(null)} visibleColumns={userSettings.visibleColumns} onSave={(cols) => setUserSettings({...userSettings, visibleColumns: cols})} lang={userSettings.language} />
             <ProjectSettingsModal isOpen={activeModal === 'project_settings'} onClose={() => setActiveModal(null)} projectData={data} onUpdateProject={handleProjectUpdate} />
-            <BatchAssignModal isOpen={activeModal === 'batchRes'} onClose={() => setActiveModal(null)} selectedActivityIds={modalData?.ids || []} resources={data.resources} onAssign={(r, u) => handleBatchAssign([r], u)} />
-            <AdminModal isOpen={activeModal === 'admin'} onClose={() => setActiveModal(null)} onSave={setAdminConfig} lang={userSettings.language} />
-            <LicenseModal isOpen={activeModal === 'license'} onClose={() => setActiveModal(null)} licenseInfo={licenseInfo} onLicenseUpdate={setLicenseInfo} />
-            <ImportReportModal isOpen={activeModal === 'import_report'} summary={importSummary} onClose={() => setActiveModal(null)} />
-            <ImportWizardModal 
-                isOpen={activeModal === 'import_wizard'} 
-                importData={pendingImport} 
-                onConfirm={handleConfirmImport} 
-                onCancel={() => { setPendingImport(null); setActiveModal(null); }}
-                lang={userSettings.language}
-            />
+            <BatchAssignModal isOpen={activeModal === 'batchRes'} onClose={() => setActiveModal(null)} resources={data.resources} onAssign={handleBatchAssign} lang={userSettings.language} />
+            <AdminModal isOpen={activeModal === 'admin'} onClose={() => setActiveModal(null)} onSave={setAdminConfig} />
+            <UserStatsModal isOpen={activeModal === 'user_stats'} onClose={() => setActiveModal(null)} />
         </div>
     );
 };

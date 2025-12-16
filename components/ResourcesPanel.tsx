@@ -10,9 +10,26 @@ interface ResourcesPanelProps {
     userSettings: UserSettings;
     selectedIds: string[];
     onSelect: (ids: string[]) => void;
+    userRole?: string;
 }
 
 type ZoomLevel = 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year';
+
+const LIMITS = {
+    trial: { activities: 20, resources: 10 },
+    authorized: { activities: 500, resources: 200 },
+    premium: { activities: Infinity, resources: Infinity },
+    admin: { activities: Infinity, resources: Infinity },
+    administrator: { activities: Infinity, resources: Infinity }
+};
+
+const getLimits = (role: string) => {
+    const r = role?.toLowerCase() || 'trial';
+    if (r.includes('admin')) return LIMITS.admin;
+    if (r.includes('premium')) return LIMITS.premium;
+    if (r.includes('authorized')) return LIMITS.authorized;
+    return LIMITS.trial;
+};
 
 const ResizableHeader: React.FC<{ width: number, onResize: (w: number) => void, children: React.ReactNode, align?: 'left'|'center'|'right' }> = ({ width, onResize, children, align='left' }) => {
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -34,7 +51,7 @@ const ResizableHeader: React.FC<{ width: number, onResize: (w: number) => void, 
     );
 };
 
-const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments, activities, onUpdateResources, userSettings, selectedIds, onSelect }) => {
+const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments, activities, onUpdateResources, userSettings, selectedIds, onSelect, userRole }) => {
     const [tab, setTab] = useState<'General' | 'Histogram'>('General');
     const [zoom, setZoom] = useState<ZoomLevel>('Week');
     const [colWidths, setColWidths] = useState({ id: 100, name: 300, type: 80, unit: 60, max: 100 });
@@ -62,6 +79,12 @@ const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments,
     };
 
     const addRes = () => {
+        const limits = getLimits(userRole || 'trial');
+        if (resources.length >= limits.resources) {
+            alert(`Plan limit reached. Your '${userRole}' plan allows max ${limits.resources} resources.`);
+            return;
+        }
+
         const newRes: Resource = { id: generateResId(), name: 'New Resource', type: 'Labor', unit: 'h', maxUnits: 8 };
         onUpdateResources([...resources, newRes]);
         onSelect([newRes.id]);

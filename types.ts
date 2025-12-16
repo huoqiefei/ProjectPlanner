@@ -17,18 +17,6 @@ export type ActivityType = 'Task' | 'Start Milestone' | 'Finish Milestone';
 
 export type RelationType = 'FS' | 'SS' | 'FF' | 'SF';
 
-// P6 Constraint Types
-export type ConstraintType = 
-    | 'None' 
-    | 'Start On' 
-    | 'Start On or After' 
-    | 'Start On or Before' 
-    | 'Finish On' 
-    | 'Finish On or After' 
-    | 'Finish On or Before' 
-    | 'Mandatory Start' 
-    | 'Mandatory Finish';
-
 export interface Predecessor {
     activityId: string;
     type: RelationType;
@@ -59,11 +47,6 @@ export interface Activity {
   startDate: Date;
   endDate: Date;
   predecessors: Predecessor[];
-  
-  // Constraints
-  constraintType?: ConstraintType;
-  constraintDate?: Date;
-
   isCritical?: boolean;
   earlyStart: Date;
   earlyFinish: Date;
@@ -125,8 +108,6 @@ export interface UserSettings {
 export interface PrintSettings {
     paperSize: 'a4' | 'a3' | 'a2' | 'a1';
     orientation: 'landscape' | 'portrait';
-    scalingMode: 'fit' | 'custom'; // Added
-    scalePercent: number; // Added (100 = 1.0)
 }
 
 export interface AdminConfig {
@@ -139,7 +120,6 @@ export interface AdminConfig {
     watermarkImage?: string; // Base64 string
     appLogo?: string; // Base64 string for Landing Page & default Watermark
     ganttBarRatio: number; // 0.1 to 0.8
-    enableLicensing: boolean; // Added: Master switch for license enforcement
 }
 
 export type AIProvider = 'google' | 'openai' | 'deepseek';
@@ -151,21 +131,18 @@ export interface AISettings {
     baseUrl?: string;
 }
 
-export interface LicenseInfo {
-    status: 'trial' | 'active';
-    machineId: string;
-    key?: string;
-    activationDate?: string;
+// --- AUTHENTICATION & USER MANAGEMENT ---
+
+// Updated to allow string to accommodate WP custom roles easily
+export type UserRole = 'trial' | 'authorized' | 'premium' | 'admin' | 'administrator' | string;
+
+export interface User {
+    id: string;
+    email: string;
+    name: string;
+    role: UserRole;
+    passwordHash?: string; 
+    createdAt: string;
 }
 
-export interface ImportSummary {
-    fileName: string;
-    projectTitle: string;
-    wbsCount: number;
-    activityCount: number;
-    resourceCount: number;
-    calendarCount: number;
-    relationshipCount: number;
-    success: boolean;
-    errors?: string[];
-}
+export type FeatureKey = 'SAVE_PROJECT' | 'EXPORT_FILE' | 'PRINT' | 'BATCH_ASSIGN' | 'RESOURCE_ANALYSIS' | 'ADMIN_CONFIG';
