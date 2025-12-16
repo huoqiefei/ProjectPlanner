@@ -172,11 +172,9 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess, adminConfig }) => {
                     )}
                 </div>
                 
-                {mode !== 'LANDING' && (
-                    <div className="mt-4 text-center">
-                        <button onClick={() => setMode('LANDING')} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">← Back to Home</button>
-                    </div>
-                )}
+                <div className="mt-4 text-center">
+                    <button onClick={() => setMode('LANDING')} className="text-xs text-slate-400 hover:text-slate-600 hover:underline">← Back to Home</button>
+                </div>
             </div>
             
             <div className="absolute bottom-4 text-slate-500 text-xs text-center w-full opacity-60">
