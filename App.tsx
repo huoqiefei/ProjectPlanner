@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -10,11 +11,54 @@ import MenuBar from './components/MenuBar';
 import CombinedView from './components/CombinedView';
 import DetailsPanel from './components/DetailsPanel';
 import ResourcesPanel from './components/ResourcesPanel';
+import ProjectsPanel from './components/ProjectsPanel';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
 import PrintSettingsModal from './components/PrintSettingsModal';
 import BatchAssignModal from './components/BatchAssignModal';
 import AuthPage from './components/AuthPage';
 import { AlertModal, ConfirmModal, AboutModal, UserSettingsModal, AdminModal, HelpModal, ColumnSetupModal, UserStatsModal, CloudBackupModal } from './components/Modals';
+
+const ContextMenu: React.FC<{ data: any, onClose: () => void, onAction: (act: string) => void }> = ({ data, onClose, onAction }) => {
+    if (!data) return null;
+    const { x, y, type, selIds } = data;
+    const isMulti = selIds && selIds.length > 1;
+
+    return (
+        <div className="fixed inset-0 z-[100]" onClick={onClose} onContextMenu={(e) => e.preventDefault()}>
+            <div 
+                className="absolute bg-white border border-slate-300 shadow-lg py-1 rounded-sm min-w-[150px] text-xs select-none"
+                style={{ top: y, left: x }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                {type === 'WBS' ? (
+                    <>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('addWBS'); onClose(); }}>Add WBS Sibling</div>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('addAct'); onClose(); }}>Add Activity</div>
+                        <div className="h-px bg-slate-200 my-1"></div>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('cut'); onClose(); }}>Cut</div>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('copy'); onClose(); }}>Copy</div>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('paste'); onClose(); }}>Paste</div>
+                        <div className="h-px bg-slate-200 my-1"></div>
+                        <div className="px-3 py-1.5 hover:bg-red-600 hover:text-white cursor-pointer text-red-600" onClick={() => { onAction('delWBS'); onClose(); }}>Delete WBS</div>
+                    </>
+                ) : type === 'Activity' ? (
+                     <>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('addActSame'); onClose(); }}>Add Activity</div>
+                        <div className="h-px bg-slate-200 my-1"></div>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('cut'); onClose(); }}>Cut</div>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('copy'); onClose(); }}>Copy</div>
+                        <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('paste'); onClose(); }}>Paste</div>
+                        <div className="h-px bg-slate-200 my-1"></div>
+                        {isMulti && <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('assignRes'); onClose(); }}>Batch Assign Resources</div>}
+                        <div className="px-3 py-1.5 hover:bg-red-600 hover:text-white cursor-pointer text-red-600" onClick={() => { onAction('delAct'); onClose(); }}>Delete Activity</div>
+                     </>
+                ) : (
+                    <div className="px-3 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer" onClick={() => { onAction('renumber'); onClose(); }}>Renumber Activities</div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 const LIMITS = {
     trial: { activities: 20, resources: 10 },
@@ -41,7 +85,7 @@ const App: React.FC = () => {
     const [data, setData] = useState<ProjectData | null>(null);
     const [schedule, setSchedule] = useState<ScheduleResult>({ activities: [], wbsMap: {} });
     const [selIds, setSelIds] = useState<string[]>([]);
-    const [view, setView] = useState<'activities' | 'resources'>('activities');
+    const [view, setView] = useState<'projects' | 'activities' | 'resources'>('activities');
     const [ganttZoom, setGanttZoom] = useState<'day' | 'week' | 'month' | 'quarter' | 'year'>('day');
     
     // View State
@@ -249,6 +293,7 @@ const App: React.FC = () => {
         setData(p => {
              if(!p) return null;
              if(view === 'resources') return { ...p, resources: p.resources.filter(r => !ids.includes(r.id)) };
+             if(view === 'projects') return { ...p, wbs: p.wbs.filter(w => !ids.includes(w.id)), activities: p.activities.filter(a => !ids.includes(a.wbsId)) };
              const wbsToDelete = p.wbs.filter(w => ids.includes(w.id));
              if (wbsToDelete.length > 0) return { ...p, wbs: p.wbs.filter(w => !ids.includes(w.id)) };
              else return { ...p, activities: p.activities.filter(a => !ids.includes(a.id)), assignments: p.assignments.filter(a => !ids.includes(a.activityId)) };
@@ -524,45 +569,58 @@ const App: React.FC = () => {
             tableWrapper.style.flexShrink = '0';
         }
 
-        // --- 3. SMART SCALING: GANTT CHART ---
-        // Force a zoom level that fits comfortably or use the current zoom but ensure readability
+        // --- 3. SMART SCALING & CROPPING ---
         const zoomMap: Record<string, number> = { day: 40, week: 15, month: 5, quarter: 2, year: 0.5 };
         const px = zoomMap[ganttZoom] || 40;
 
-        let maxEnd = new Date(data!.meta.projectStartDate).getTime();
+        // Calculate Project Extents
+        let minStart = new Date(data!.meta.projectStartDate).getTime();
+        let maxEnd = minStart;
         if (schedule.activities.length > 0) {
-            schedule.activities.forEach(a => {
-                if (a.endDate.getTime() > maxEnd) maxEnd = a.endDate.getTime();
-            });
+            const starts = schedule.activities.map(a => a.startDate.getTime());
+            const ends = schedule.activities.map(a => a.endDate.getTime());
+            minStart = Math.min(...starts);
+            maxEnd = Math.max(...ends);
         }
-        const start = new Date(data!.meta.projectStartDate).getTime();
-        const diffDays = Math.max(1, (maxEnd - start) / (1000 * 60 * 60 * 24));
-        const originalGanttContentWidth = (diffDays + 20) * px; 
-
-        // Auto-zoom logic: if Gantt is too wide for page, we try to scale it down,
-        // but if it's too huge, we let it overflow horizontally or rely on page breaking (future).
-        // Here we just ensure it fills the remaining space.
-        const availableGanttPxW = Math.max(400, contentPxW - tableWidth); 
         
+        const projectStartTs = new Date(data!.meta.projectStartDate).getTime();
+        // Calculate crop range in pixels
+        // Padding: 2 days before, 5 days after
+        const paddingDays = 5;
+        const visibleStartTs = minStart - (2 * 86400000);
+        const visibleEndTs = maxEnd + (5 * 86400000);
+        
+        const offsetPx = ((visibleStartTs - projectStartTs) / 86400000) * px;
+        const durationPx = ((visibleEndTs - visibleStartTs) / 86400000) * px;
+        
+        const croppedGanttWidth = Math.max(200, durationPx);
+
+        // Adjust SVGs viewBox to crop
         const allSvgs = clone.querySelectorAll('svg');
-        
-        if (tableWidth < contentPxW) {
-            allSvgs.forEach((svg: any) => {
-                const currentH = svg.getAttribute('height') || '100';
-                svg.setAttribute('viewBox', `0 0 ${originalGanttContentWidth} ${currentH}`);
-                // Scale width to fit available space if logic requires "Fit to Page"
-                // But generally preserving aspect ratio is better for gantt
-                // We let it render full width then scale image down to PDF page
-                svg.setAttribute('width', `${Math.max(availableGanttPxW, originalGanttContentWidth)}px`); 
-                svg.setAttribute('preserveAspectRatio', 'xMinYMin meet'); 
-            });
+        allSvgs.forEach((svg: any) => {
+            const currentH = svg.getAttribute('height') || '100';
+            // Set viewBox to start at offsetPx with calculated width
+            svg.setAttribute('viewBox', `${offsetPx} 0 ${croppedGanttWidth} ${currentH}`);
+            svg.setAttribute('width', `${croppedGanttWidth}px`); 
+            svg.setAttribute('preserveAspectRatio', 'none'); 
+        });
 
-            const ganttWrappers = clone.querySelectorAll('.gantt-component, .gantt-header-wrapper, .gantt-body-wrapper');
-            ganttWrappers.forEach((el: any) => {
-                el.style.width = `${Math.max(availableGanttPxW, originalGanttContentWidth)}px`;
-                el.style.minWidth = `${Math.max(availableGanttPxW, originalGanttContentWidth)}px`;
-                el.style.overflow = 'hidden';
-            });
+        const ganttWrappers = clone.querySelectorAll('.gantt-component, .gantt-header-wrapper, .gantt-body-wrapper');
+        ganttWrappers.forEach((el: any) => {
+            el.style.width = `${croppedGanttWidth}px`;
+            el.style.minWidth = `${croppedGanttWidth}px`;
+            el.style.overflow = 'hidden';
+        });
+
+        // Calculate Scaling Factor
+        // If "Fit to Page", we scale the image down to fit PDF width.
+        // If Custom %, we scale accordingly.
+        let outputScale = 1.0;
+        if (settings.scaling === 'fit') {
+            // Fit logic handled by PDF fitRatio below (image fits content width)
+            // But we can ensure the rendered canvas isn't insanely huge if not needed
+        } else if (settings.scaling) {
+            // Logic handled in PDF generation phase mainly, but here we prep structure
         }
 
         // --- 4. SEPARATE HEADERS FROM BODY ---
@@ -578,9 +636,7 @@ const App: React.FC = () => {
             return;
         }
 
-        // Calculate final assembly width based on what we set above
-        const finalGanttWidth = Math.max(availableGanttPxW, originalGanttContentWidth);
-        const finalTotalWidth = tableWidth + finalGanttWidth;
+        const finalTotalWidth = tableWidth + croppedGanttWidth;
 
         const headerAssembly = document.createElement('div');
         headerAssembly.style.display = 'flex';
@@ -592,7 +648,7 @@ const App: React.FC = () => {
         tableHeader.style.flexShrink = '0';
         headerAssembly.appendChild(tableHeader);
         
-        ganttHeader.style.width = `${finalGanttWidth}px`;
+        ganttHeader.style.width = `${croppedGanttWidth}px`;
         ganttHeader.style.border = 'none'; 
         headerAssembly.appendChild(ganttHeader);
 
@@ -607,7 +663,7 @@ const App: React.FC = () => {
         tableBody.style.flexShrink = '0';
         bodyAssembly.appendChild(tableBody);
 
-        ganttBody.style.width = `${finalGanttWidth}px`;
+        ganttBody.style.width = `${croppedGanttWidth}px`;
         ganttBody.style.height = 'auto';
         ganttBody.style.overflow = 'visible';
         bodyAssembly.appendChild(ganttBody);
@@ -642,11 +698,16 @@ const App: React.FC = () => {
 
             const pdf = new jsPDF(isLandscape ? 'l' : 'p', 'pt', [pagePtW, pagePtH]);
             const pdfContentWidth = pagePtW - (marginPt * 2);
-            // We scale the image to fit the PDF width. 
-            // If the gantt is huge, this shrinks it. 
-            // For P6 style "fit times scale", this is acceptable behavior.
-            const fitRatio = pdfContentWidth / (headerCanvas.width / captureScale);
             
+            // Calculate Fit Ratio
+            let fitRatio = pdfContentWidth / (headerCanvas.width / captureScale);
+            
+            // Apply Custom Scaling if not "Fit to Page"
+            if (settings.scaling !== 'fit') {
+                const scalePerc = parseInt(settings.scaling) / 100;
+                fitRatio = scalePerc; 
+            }
+
             const pdfHeaderH = (headerCanvas.height / captureScale) * fitRatio;
             const pdfBodyTotalH = (bodyCanvas.height / captureScale) * fitRatio;
             
@@ -693,16 +754,17 @@ const App: React.FC = () => {
 
             while (heightLeftPts > 0) {
                 // Add Header on every page
-                pdf.addImage(headerCanvas.toDataURL('image/png', 1.0), 'PNG', marginPt, marginPt, pdfContentWidth, pdfHeaderH);
+                pdf.addImage(headerCanvas.toDataURL('image/png', 1.0), 'PNG', marginPt, marginPt, (headerCanvas.width / captureScale) * fitRatio, pdfHeaderH);
                 pdf.setDrawColor(203, 213, 225); 
-                pdf.rect(marginPt, marginPt, pdfContentWidth, pdfHeaderH);
+                pdf.rect(marginPt, marginPt, (headerCanvas.width / captureScale) * fitRatio, pdfHeaderH);
 
                 const availableHPts = pdfContentHeight - pdfHeaderH - 10;
                 const sliceHPts = Math.min(heightLeftPts, availableHPts);
                 
                 // Calculate source dimensions
-                const sourceY = yOffset * (bodyCanvas.height / pdfBodyTotalH);
-                const sourceH = sliceHPts * (bodyCanvas.height / pdfBodyTotalH);
+                // Source height in canvas pixels = sliceHPts / fitRatio * captureScale
+                const sourceH = (sliceHPts / fitRatio) * captureScale;
+                const sourceY = (yOffset / fitRatio) * captureScale;
                 
                 const sliceCanvas = document.createElement('canvas');
                 sliceCanvas.width = bodyCanvas.width;
@@ -715,8 +777,8 @@ const App: React.FC = () => {
                         0, sourceY, bodyCanvas.width, sourceH, 
                         0, 0, sliceCanvas.width, sliceCanvas.height 
                     );
-                    pdf.addImage(sliceCanvas.toDataURL('image/png', 1.0), 'PNG', marginPt, marginPt + pdfHeaderH, pdfContentWidth, sliceHPts);
-                    pdf.rect(marginPt, marginPt + pdfHeaderH, pdfContentWidth, sliceHPts);
+                    pdf.addImage(sliceCanvas.toDataURL('image/png', 1.0), 'PNG', marginPt, marginPt + pdfHeaderH, (bodyCanvas.width / captureScale) * fitRatio, sliceHPts);
+                    pdf.rect(marginPt, marginPt + pdfHeaderH, (bodyCanvas.width / captureScale) * fitRatio, sliceHPts);
                 }
 
                 if (wmDataUrl) {
@@ -745,43 +807,23 @@ const App: React.FC = () => {
         }
     };
 
-    const ContextMenu = ({ data, onClose, onAction }: any) => {
-        if (!data) return null;
-        const { x, y, type } = data;
-        const style = { top: Math.min(y, window.innerHeight - 150), left: Math.min(x, window.innerWidth - 180) };
-        const Icons = {
-            Task: <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd"/></svg>,
-            WBS: <svg className="w-3 h-3 text-yellow-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>,
-            User: <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/></svg>,
-            Delete: <svg className="w-3 h-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>,
-            Number: <svg className="w-3 h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-        };
-        
-        return (
-            <div className="ctx-menu" style={{ ...style, fontSize: `${userSettings.uiFontPx || 13}px` }} onClick={e => e.stopPropagation()}>
-                <div className="bg-slate-100 px-3 py-1 font-bold border-b text-slate-500">{type} Actions</div>
-                {type === 'WBS' && (
-                    <>
-                        <div className="ctx-item" onClick={() => onAction('addAct')}>{Icons.Task} Add Activity</div>
-                        <div className="ctx-item" onClick={() => onAction('addWBS')}>{Icons.WBS} Add Child WBS</div>
-                        <div className="ctx-sep"></div>
-                        <div className="ctx-item" onClick={() => onAction('renumber')}>{Icons.Number} Renumber Activities</div>
-                        <div className="ctx-sep"></div>
-                        <div className="ctx-item text-red-600" onClick={() => onAction('delWBS')}>{Icons.Delete} Delete WBS</div>
-                    </>
-                )}
-                {type === 'Activity' && (
-                    <>
-                        <div className="ctx-item" onClick={() => onAction('addActSame')}>{Icons.Task} Add Activity</div>
-                        <div className="ctx-item" onClick={() => onAction('assignRes')}>{Icons.User} Assign Resource</div>
-                        <div className="ctx-sep"></div>
-                        <div className="ctx-item" onClick={() => onAction('renumber')}>{Icons.Number} Renumber Activities</div>
-                        <div className="ctx-sep"></div>
-                        <div className="ctx-item text-red-600" onClick={() => onAction('delAct')}>{Icons.Delete} Delete Activity</div>
-                    </>
-                )}
-            </div>
-        );
+    const handleAddProject = () => {
+        const pCode = `PROJ-${data?.wbs.length || 0 + 1}`;
+        setData(p => p ? {
+            ...p,
+            wbs: [...p.wbs, { id: pCode, name: 'New Project', parentId: null, remarks: '', calendarId: '' }]
+        } : null);
+    };
+
+    const handleUpdateWBS = (id: string, field: string, val: any) => {
+        setData(p => p ? {
+            ...p,
+            wbs: p.wbs.map(w => w.id === id ? { ...w, [field]: val } : w)
+        } : null);
+    };
+
+    const handleDeleteProject = (id: string) => {
+        handleDeleteItems([id]); // Re-use delete logic which handles recursive deletion
     };
 
     if (authLoading) return <div className="h-screen w-screen flex items-center justify-center bg-slate-100">Loading...</div>;
@@ -826,6 +868,9 @@ const App: React.FC = () => {
             <div className="flex-grow flex flex-col overflow-hidden">
                 <div className="bg-slate-300 border-b flex px-2 pt-1 gap-1 shrink-0 justify-between items-end" style={{ fontSize: `${userSettings.uiFontPx || 13}px` }}>
                     <div className="flex gap-1">
+                        <button onClick={() => setView('projects')} className={`px-4 py-1 font-bold rounded-t ${view === 'projects' ? 'bg-white text-blue-900' : 'text-slate-600 hover:bg-slate-200'}`}>
+                            {userSettings.language === 'zh' ? '项目' : 'Projects'}
+                        </button>
                         {['Activities', 'Resources'].map(v => (
                             <button key={v} onClick={() => setView(v.toLowerCase() as any)} className={`px-4 py-1 font-bold rounded-t ${view === v.toLowerCase() ? 'bg-white text-blue-900' : 'text-slate-600 hover:bg-slate-200'}`}>
                                 {v === 'Activities' ? (userSettings.language === 'zh' ? '作业' : 'Activities') : (userSettings.language === 'zh' ? '资源' : 'Resources')}
@@ -847,6 +892,17 @@ const App: React.FC = () => {
                         </div>
                     )}
                 </div>
+
+                {view === 'projects' && (
+                    <ProjectsPanel 
+                        data={data}
+                        wbsMap={schedule.wbsMap}
+                        onUpdateWBS={handleUpdateWBS}
+                        onAddProject={handleAddProject}
+                        onDeleteProject={handleDeleteProject}
+                        userSettings={userSettings}
+                    />
+                )}
 
                 {view === 'activities' && (
                     <>
@@ -912,6 +968,7 @@ const App: React.FC = () => {
                 customCopyright={adminConfig.copyrightText} 
                 currentUser={currentUser}
                 lang={userSettings.language}
+                dataSize={JSON.stringify(data).length}
             />
             <HelpModal isOpen={activeModal === 'help'} onClose={() => setActiveModal(null)} />
             <UserSettingsModal isOpen={activeModal === 'user_settings'} settings={userSettings} onSave={setUserSettings} onClose={() => setActiveModal(null)} />

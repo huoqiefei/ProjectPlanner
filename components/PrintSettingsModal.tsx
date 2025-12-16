@@ -16,7 +16,8 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ isOpen, onClose
         orientation: 'landscape',
         dateRange: 'project',
         showCritical: true,
-        showLinks: true
+        showLinks: true,
+        scaling: 'fit'
     });
     const { t } = useTranslation(lang as 'en' | 'zh');
 
@@ -57,33 +58,44 @@ const PrintSettingsModal: React.FC<PrintSettingsModalProps> = ({ isOpen, onClose
 
                     <div className="border-t pt-4"></div>
 
-                    {/* Date Range */}
-                    <div>
-                        <label className="block mb-2 font-bold text-slate-600">{t('DateRange')}</label>
-                        <div className="space-y-2">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="radio" checked={settings.dateRange === 'project'} onChange={() => setSettings({...settings, dateRange: 'project'})} />
-                                {t('EntireProject')}
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="radio" checked={settings.dateRange === 'view'} onChange={() => setSettings({...settings, dateRange: 'view'})} />
-                                {t('CurrentView')}
-                            </label>
-                        </div>
-                        
-                        {settings.dateRange === 'view' && (
-                            <div className="ml-6 mt-2 grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs mb-1">Start</label>
-                                    <input type="date" className="border p-1 w-full text-xs" value={settings.startDate || ''} onChange={e => setSettings({...settings, startDate: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-xs mb-1">End</label>
-                                    <input type="date" className="border p-1 w-full text-xs" value={settings.endDate || ''} onChange={e => setSettings({...settings, endDate: e.target.value})} />
-                                </div>
+                    {/* Date Range & Scaling */}
+                    <div className="grid grid-cols-2 gap-6">
+                        <div>
+                            <label className="block mb-2 font-bold text-slate-600">{t('DateRange')}</label>
+                            <div className="space-y-2">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" checked={settings.dateRange === 'project'} onChange={() => setSettings({...settings, dateRange: 'project'})} />
+                                    {t('EntireProject')}
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" checked={settings.dateRange === 'view'} onChange={() => setSettings({...settings, dateRange: 'view'})} />
+                                    {t('CurrentView')}
+                                </label>
                             </div>
-                        )}
+                        </div>
+                        <div>
+                            <label className="block mb-2 font-bold text-slate-600">{t('Scaling')}</label>
+                            <select className="w-full border p-2 rounded" value={settings.scaling} onChange={e => setSettings({...settings, scaling: e.target.value as any})}>
+                                <option value="fit">{t('FitToPage')}</option>
+                                <option value="100">100%</option>
+                                <option value="75">75%</option>
+                                <option value="50">50%</option>
+                            </select>
+                        </div>
                     </div>
+
+                    {settings.dateRange === 'view' && (
+                        <div className="mt-2 grid grid-cols-2 gap-4 bg-slate-50 p-2 rounded border">
+                            <div>
+                                <label className="block text-xs mb-1">Start</label>
+                                <input type="date" className="border p-1 w-full text-xs" value={settings.startDate || ''} onChange={e => setSettings({...settings, startDate: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs mb-1">End</label>
+                                <input type="date" className="border p-1 w-full text-xs" value={settings.endDate || ''} onChange={e => setSettings({...settings, endDate: e.target.value})} />
+                            </div>
+                        </div>
+                    )}
 
                     <div className="border-t pt-4"></div>
 

@@ -95,18 +95,24 @@ export const ConfirmModal: React.FC<{ isOpen: boolean, msg: string, onConfirm: (
     );
 };
 
-export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, customCopyright?: string, currentUser?: User | null, lang?: 'en' | 'zh' }> = ({ isOpen, onClose, customCopyright, currentUser, lang='en' }) => {
-    const [content, setContent] = useState('');
+export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, customCopyright?: string, currentUser?: User | null, lang?: 'en' | 'zh', dataSize?: number }> = ({ isOpen, onClose, customCopyright, currentUser, lang='en', dataSize = 0 }) => {
     const { t } = useTranslation(lang as 'en' | 'zh');
+    const [memory, setMemory] = useState<string>('N/A');
 
     useEffect(() => {
         if (isOpen) {
-            fetch('about.md')
-                .then(res => res.text())
-                .then(text => setContent(text))
-                .catch(() => setContent('# About\nCould not load about.md'));
+            const mem = (performance as any).memory;
+            if (mem) {
+                setMemory(`${Math.round(mem.usedJSHeapSize / 1024 / 1024)} MB / ${Math.round(mem.jsHeapSizeLimit / 1024 / 1024)} MB`);
+            }
         }
     }, [isOpen]);
+
+    const formatSize = (bytes: number) => {
+        if(bytes < 1024) return bytes + ' B';
+        if(bytes < 1024 * 1024) return (bytes/1024).toFixed(1) + ' KB';
+        return (bytes/1024/1024).toFixed(1) + ' MB';
+    };
 
     return (
         <BaseModal isOpen={isOpen} title={t('About')} onClose={onClose} footer={
@@ -115,18 +121,37 @@ export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, custom
                  <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Close</button>
             </div>
         }>
-            <div className="mb-4 bg-slate-50 p-2 rounded border border-slate-200">
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                    <span className="text-slate-500 font-bold">{t('Version')}:</span>
-                    <span>1.0.0</span>
-                    <span className="text-slate-500 font-bold">{t('AuthorizedTo')}:</span>
-                    <span className="font-bold text-blue-800">{currentUser?.name || 'Guest'}</span>
-                    <span className="text-slate-500 font-bold">{t('LicenseType')}:</span>
-                    <span className="uppercase">{currentUser?.role || 'Trial'}</span>
+            <div className="space-y-4">
+                <div className="flex items-center gap-4 border-b pb-4">
+                    <div className="w-16 h-16 bg-blue-900 text-white flex items-center justify-center text-2xl font-black rounded-lg shadow-md">
+                        P6
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Planner Web</h2>
+                        <p className="text-slate-500">Professional Project Scheduling</p>
+                    </div>
                 </div>
-            </div>
-            <div className="max-h-[50vh] overflow-y-auto">
-                 <SimpleMarkdown content={content} />
+
+                <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
+                    <span className="font-bold text-slate-500 text-right">{t('Version')}:</span>
+                    <span className="text-slate-800">1.2.0 (Build 20240520)</span>
+
+                    <span className="font-bold text-slate-500 text-right">{t('AuthorizedTo')}:</span>
+                    <span className="text-blue-700 font-bold">{currentUser?.name || 'Guest'}</span>
+
+                    <span className="font-bold text-slate-500 text-right">{t('LicenseType')}:</span>
+                    <span className="uppercase text-slate-700 bg-slate-100 px-1 rounded inline-block w-fit">{currentUser?.role || 'Trial'}</span>
+
+                    <span className="font-bold text-slate-500 text-right">{t('BrowserMemory')}:</span>
+                    <span className="text-slate-700 font-mono">{memory}</span>
+
+                    <span className="font-bold text-slate-500 text-right">{t('ProjectDataSize')}:</span>
+                    <span className="text-slate-700 font-mono">{formatSize(dataSize)}</span>
+                </div>
+
+                <div className="text-[10px] text-slate-400 pt-2 border-t mt-2">
+                    This software uses local browser storage. Clearing browser cache may delete unsaved data.
+                </div>
             </div>
         </BaseModal>
     );
@@ -135,6 +160,11 @@ export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, custom
 export const AdminModal: React.FC<{ isOpen: boolean, onClose: () => void, onSave: (c: AdminConfig) => void }> = ({ isOpen, onClose, onSave }) => {
     return <AdminDashboard isOpen={isOpen} onClose={onClose} onSave={onSave} />; 
 };
+
+// ... (Rest of Modals like HelpModal, ColumnSetupModal, etc. remain unchanged) ...
+// Re-exporting unmodified modals for brevity if possible, but XML format requires full file content if changed.
+// Since AboutModal changed, I must provide full content of Modals.tsx or at least the changed parts + context.
+// Providing full file to be safe.
 
 const DEFAULT_MANUAL = `# Planner Web - User Operation Manual
 

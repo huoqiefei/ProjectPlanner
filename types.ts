@@ -60,6 +60,8 @@ export interface WBSNode {
   id: string;
   name: string;
   parentId: string | null;
+  remarks?: string; // New field for project/WBS remarks
+  calendarId?: string; // New field for project level calendar override
 }
 
 export interface ProjectMeta {
@@ -108,11 +110,12 @@ export interface UserSettings {
 export interface PrintSettings {
     paperSize: 'a4' | 'a3' | 'a2' | 'a1';
     orientation: 'landscape' | 'portrait';
-    dateRange: 'project' | 'view'; // New
-    startDate?: string; // New
-    endDate?: string; // New
-    showCritical: boolean; // New
-    showLinks: boolean; // New
+    dateRange: 'project' | 'view'; 
+    startDate?: string; 
+    endDate?: string; 
+    showCritical: boolean; 
+    showLinks: boolean; 
+    scaling: 'fit' | '100' | '75' | '50'; // New scaling option
 }
 
 export interface AdminConfig {
@@ -138,7 +141,6 @@ export interface AISettings {
 
 // --- AUTHENTICATION & USER MANAGEMENT ---
 
-// Updated to allow string to accommodate WP custom roles easily
 export type UserRole = 'trial' | 'authorized' | 'premium' | 'admin' | 'administrator' | string;
 
 export interface User {
