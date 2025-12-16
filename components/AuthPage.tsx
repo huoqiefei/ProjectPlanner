@@ -52,6 +52,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess, adminConfig }) => {
     };
 
     if (mode === 'LANDING') {
+        // Render LandingPage without the flex/centered/overflow-hidden wrapper of the Auth form
         return (
             <LandingPage 
                 onLogin={() => setMode('LOGIN')} 

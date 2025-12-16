@@ -284,7 +284,6 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                                         {editing?.id === row.id && editing.field === 'id' ? (
                                             <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
                                         ) : (
-                                            /* Removed leading-none here to fix print clipping */
                                             <span onDoubleClick={() => startEdit(row.id, 'id', row.id)} className="truncate w-full">{row.id}</span>
                                         )}
                                     </div>
@@ -359,7 +358,7 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                 activities={schedule}
                 projectStartDate={projectData.meta ? new Date(projectData.meta.projectStartDate) : new Date()} 
                 totalDuration={flatRows.length > 0 ? (flatRows[0].duration || 100) : 100} // Rough est
-                showRelations={true} // Controlled via toolbar in real app usually
+                showRelations={true}
                 showCritical={true}
                 showGrid={true}
                 zoomLevel={zoomLevel}
@@ -369,19 +368,6 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                 headerHeight={headerHeight}
                 onScroll={handleGanttScroll}
             />
-            
-            {/* Zoom Controls Overlay */}
-            <div className="absolute top-1 right-4 flex gap-1 bg-white/80 p-1 rounded border border-slate-300 shadow-sm z-10">
-                {(['day', 'week', 'month', 'quarter', 'year'] as const).map(z => (
-                    <button 
-                        key={z} 
-                        onClick={() => onZoomChange(z)}
-                        className={`px-2 py-0.5 text-[10px] uppercase font-bold border rounded ${zoomLevel === z ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
-                    >
-                        {z}
-                    </button>
-                ))}
-            </div>
         </div>
     );
 };

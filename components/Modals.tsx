@@ -360,94 +360,6 @@ export const UserSettingsModal: React.FC<{ isOpen: boolean, onClose: () => void,
     );
 };
 
-export const PrintSettingsModal: React.FC<{ isOpen: boolean, onClose: () => void, onPrint: (s: PrintSettings) => void, lang?: 'en'|'zh' }> = ({ isOpen, onClose, onPrint, lang='en' }) => {
-    const [settings, setSettings] = useState<PrintSettings>({ 
-        paperSize: 'a3', 
-        orientation: 'landscape'
-    });
-    const { t } = useTranslation(lang as 'en' | 'zh');
-
-    return (
-        <BaseModal isOpen={isOpen} title={t('PageSetup')} onClose={onClose} footer={
-            <>
-                <button onClick={onClose} className="px-3 py-1 bg-white border border-slate-300 rounded hover:bg-slate-50">{t('Cancel')}</button>
-                <button onClick={() => { onPrint(settings); onClose(); }} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">{t('PrintPreview')}</button>
-            </>
-        }>
-            <div className="space-y-4">
-                <div>
-                    <label className="block mb-1 font-bold">{t('PaperSize')}</label>
-                    <select className="w-full border p-1" value={settings.paperSize} onChange={e => setSettings({...settings, paperSize: e.target.value as any})}>
-                        <option value="a4">A4</option>
-                        <option value="a3">A3</option>
-                        <option value="a2">A2</option>
-                        <option value="a1">A1</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="block mb-1 font-bold">{t('Orientation')}</label>
-                    <div className="flex gap-4 mt-1">
-                        <label className="flex items-center gap-1">
-                            <input type="radio" name="orient" checked={settings.orientation === 'landscape'} onChange={() => setSettings({...settings, orientation: 'landscape'})} /> {t('Landscape')}
-                        </label>
-                        <label className="flex items-center gap-1">
-                            <input type="radio" name="orient" checked={settings.orientation === 'portrait'} onChange={() => setSettings({...settings, orientation: 'portrait'})} /> {t('Portrait')}
-                        </label>
-                    </div>
-                </div>
-
-                <div className="text-[10px] text-slate-500 mt-2 bg-yellow-50 p-2 border border-yellow-200">
-                    {t('PrintNote')}
-                </div>
-            </div>
-        </BaseModal>
-    );
-};
-
-export const BatchAssignModal: React.FC<{ isOpen: boolean, onClose: () => void, onAssign: (resIds: string[], units: number) => void, resources: Resource[], lang?: 'en'|'zh' }> = ({ isOpen, onClose, onAssign, resources, lang='en' }) => {
-    const [selectedResIds, setSelectedResIds] = useState<string[]>([]);
-    const [units, setUnits] = useState(8);
-    const { t } = useTranslation(lang as 'en' | 'zh');
-
-    if (!isOpen) return null;
-
-    const toggleRes = (id: string) => {
-        if(selectedResIds.includes(id)) setSelectedResIds(selectedResIds.filter(x => x !== id));
-        else setSelectedResIds([...selectedResIds, id]);
-    };
-
-    const handleAssign = () => {
-        onAssign(selectedResIds, units);
-        onClose();
-        setSelectedResIds([]);
-    };
-
-    return (
-        <BaseModal isOpen={isOpen} title={t('BatchAssign')} onClose={onClose} footer={
-            <>
-                <button onClick={onClose} className="px-3 py-1 bg-white border border-slate-300 rounded hover:bg-slate-50">{t('Cancel')}</button>
-                <button onClick={handleAssign} disabled={selectedResIds.length === 0} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">{t('Assign')}</button>
-            </>
-        }>
-            <div className="flex flex-col h-64">
-                <div className="mb-2">
-                    <label className="block font-bold mb-1">{t('UnitsPerDay')}</label>
-                    <input type="number" className="border w-full p-1" value={units} onChange={e => setUnits(Number(e.target.value))} />
-                </div>
-                <div className="font-bold mb-1 border-b">{t('SelectRes')}:</div>
-                <div className="flex-grow overflow-y-auto border bg-slate-50 p-1">
-                    {resources.map(r => (
-                        <div key={r.id} className="flex items-center gap-2 p-1 hover:bg-white cursor-pointer" onClick={() => toggleRes(r.id)}>
-                            <input type="checkbox" checked={selectedResIds.includes(r.id)} onChange={() => {}} />
-                            <span className="flex-grow">{r.name} ({r.type})</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </BaseModal>
-    );
-};
-
 export const UserStatsModal: React.FC<{ isOpen: boolean, onClose: () => void }> = ({ isOpen, onClose }) => {
     // Mock Data for Admin Statistics
     const stats = {
@@ -493,6 +405,32 @@ export const UserStatsModal: React.FC<{ isOpen: boolean, onClose: () => void }> 
 
                 <div className="text-xs text-slate-400 text-center pt-2">
                     System Storage Used: {stats.storageUsed}
+                </div>
+            </div>
+        </BaseModal>
+    );
+};
+
+export const CloudBackupModal: React.FC<{ isOpen: boolean, onClose: () => void, lang?: 'en' | 'zh' }> = ({ isOpen, onClose, lang='en' }) => {
+    const { t } = useTranslation(lang as 'en' | 'zh');
+    
+    // Placeholder UI for Cloud Backup
+    return (
+        <BaseModal isOpen={isOpen} title={t('CloudBackup')} onClose={onClose} footer={
+            <button onClick={onClose} className="px-3 py-1 bg-slate-200 text-slate-700 rounded hover:bg-slate-300">{t('Close')}</button>
+        }>
+            <div className="flex flex-col items-center justify-center p-6 text-center space-y-4">
+                <div className="bg-blue-50 p-4 rounded-full">
+                    <svg className="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+                </div>
+                <div>
+                    <h3 className="text-lg font-bold text-slate-800">Coming Soon</h3>
+                    <p className="text-slate-500 mt-2">Cloud synchronization and backup features are currently in development. This interface is a placeholder for future API integration.</p>
+                </div>
+                <div className="w-full bg-slate-100 rounded p-3 text-xs font-mono text-left mt-4 border border-slate-200">
+                    <div className="text-slate-400">// API Endpoint Stub</div>
+                    <div className="text-blue-600">POST /api/v1/projects/backup</div>
+                    <div className="text-slate-600">Status: 501 Not Implemented</div>
                 </div>
             </div>
         </BaseModal>

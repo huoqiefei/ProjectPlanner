@@ -14,6 +14,7 @@ interface ToolbarProps {
     currentUser: User | null;
     onLogout: () => void;
     onUserStats: () => void;
+    onCloudBackup: () => void;
 }
 
 const Icons = {
@@ -24,17 +25,18 @@ const Icons = {
     Settings: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
     User: <svg className="w-full h-full" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/></svg>,
     Stats: <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
-    Logout: <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+    Logout: <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
+    Cloud: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
 };
 
-const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSettings, title, isDirty, uiFontPx, currentUser, onLogout, onUserStats }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSettings, title, isDirty, uiFontPx, currentUser, onLogout, onUserStats, onCloudBackup }) => {
     const fileRef = useRef<HTMLInputElement>(null);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
 
     const fontSize = uiFontPx || 13;
-    const btnSize = Math.max(30, fontSize * 2.2); // Scale button size
-    const iconSize = Math.max(16, fontSize * 1.2); // Scale icon size
+    const btnSize = Math.max(30, fontSize * 2.2); 
+    const iconSize = Math.max(16, fontSize * 1.2); 
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -61,6 +63,10 @@ const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSet
                 <>
                     <button onClick={onSave} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="Save">
                          <div style={{ width: iconSize, height: iconSize }}>{Icons.Save}</div>
+                    </button>
+                    <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
+                    <button onClick={onCloudBackup} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="Cloud Backup">
+                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Cloud}</div>
                     </button>
                     <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
                     <button onClick={onSettings} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="User Preferences">
@@ -91,10 +97,10 @@ const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSet
                 )}
 
                 {showUserMenu && currentUser && (
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-slate-300 shadow-2xl rounded-sm overflow-hidden z-50 text-slate-800 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-slate-300 shadow-2xl rounded-sm overflow-hidden z-50 text-slate-800 animate-in fade-in slide-in-from-top-2 duration-150">
                         <div className="bg-slate-50 p-4 border-b border-slate-200">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow-inner">
+                                <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow-inner border-2 border-white">
                                     {currentUser.name.charAt(0).toUpperCase()}
                                 </div>
                                 <div className="overflow-hidden">
@@ -102,16 +108,39 @@ const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSet
                                     <p className="text-xs text-slate-500 truncate" title={currentUser.email}>{currentUser.email}</p>
                                 </div>
                             </div>
-                            <div className="mt-3">
+                            <div className="mt-3 flex gap-2">
                                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
                                     isAdmin ? 'bg-red-50 text-red-700 border-red-200' : 
                                     currentUser.role === 'premium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                     'bg-green-50 text-green-700 border-green-200'
                                 }`}>
-                                    Group: {currentUser.role}
+                                    {currentUser.role.toUpperCase()}
+                                </span>
+                                <span className="text-[10px] px-2 py-0.5 rounded border bg-slate-100 text-slate-500 border-slate-200">
+                                    ID: {currentUser.id}
                                 </span>
                             </div>
                         </div>
+                        
+                        <div className="p-3 bg-white grid grid-cols-2 gap-2 text-xs border-b border-slate-100">
+                            <div>
+                                <span className="block text-slate-400">Joined</span>
+                                <span className="font-semibold text-slate-700">{new Date(currentUser.createdAt || Date.now()).toLocaleDateString()}</span>
+                            </div>
+                            <div>
+                                <span className="block text-slate-400">Projects</span>
+                                <span className="font-semibold text-slate-700">1 Active</span>
+                            </div>
+                            <div>
+                                <span className="block text-slate-400">Last Login</span>
+                                <span className="font-semibold text-slate-700">Just now</span>
+                            </div>
+                            <div>
+                                <span className="block text-slate-400">Storage</span>
+                                <span className="font-semibold text-slate-700">Local Only</span>
+                            </div>
+                        </div>
+
                         <div className="py-1">
                             {isAdmin && (
                                 <button onClick={() => { onUserStats(); setShowUserMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 flex items-center text-slate-700">
@@ -119,8 +148,11 @@ const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSet
                                 </button>
                             )}
                             <div className="border-t my-1"></div>
-                            <button onClick={() => { onLogout(); setShowUserMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 flex items-center">
-                                {Icons.Logout} Sign Out
+                            <button onClick={() => { onLogout(); setShowUserMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 flex items-center group">
+                                <span className="group-hover:translate-x-1 transition-transform inline-block">
+                                    {Icons.Logout} 
+                                </span>
+                                Sign Out
                             </button>
                         </div>
                     </div>

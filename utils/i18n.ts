@@ -1,5 +1,4 @@
 
-
 export const translations = {
     en: {
         File: 'File',
@@ -71,7 +70,16 @@ export const translations = {
         AvailableCols: 'Available Columns',
         VisibleCols: 'Visible Columns',
         MoveRight: 'Add >',
-        MoveLeft: '< Remove'
+        MoveLeft: '< Remove',
+        PrintOptions: 'Print Options',
+        DateRange: 'Date Range',
+        EntireProject: 'Entire Project',
+        CurrentView: 'Current Time View',
+        CustomRange: 'Custom Range',
+        ShowCriticalPath: 'Show Critical Path',
+        ShowRelationships: 'Show Logic Lines',
+        CloudBackup: 'Cloud Backup',
+        CloudSync: 'Cloud Sync'
     },
     zh: {
         File: '文件',
@@ -143,7 +151,16 @@ export const translations = {
         AvailableCols: '可用列',
         VisibleCols: '显示列',
         MoveRight: '添加 >',
-        MoveLeft: '< 移除'
+        MoveLeft: '< 移除',
+        PrintOptions: '打印选项',
+        DateRange: '时间范围',
+        EntireProject: '整个项目',
+        CurrentView: '当前视图',
+        CustomRange: '自定义范围',
+        ShowCriticalPath: '显示关键路径',
+        ShowRelationships: '显示逻辑线',
+        CloudBackup: '云端备份',
+        CloudSync: '云同步'
     }
 };
 

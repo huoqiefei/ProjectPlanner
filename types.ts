@@ -108,6 +108,11 @@ export interface UserSettings {
 export interface PrintSettings {
     paperSize: 'a4' | 'a3' | 'a2' | 'a1';
     orientation: 'landscape' | 'portrait';
+    dateRange: 'project' | 'view'; // New
+    startDate?: string; // New
+    endDate?: string; // New
+    showCritical: boolean; // New
+    showLinks: boolean; // New
 }
 
 export interface AdminConfig {
@@ -145,4 +150,4 @@ export interface User {
     createdAt: string;
 }
 
-export type FeatureKey = 'SAVE_PROJECT' | 'EXPORT_FILE' | 'PRINT' | 'BATCH_ASSIGN' | 'RESOURCE_ANALYSIS' | 'ADMIN_CONFIG';
+export type FeatureKey = 'SAVE_PROJECT' | 'EXPORT_FILE' | 'PRINT' | 'BATCH_ASSIGN' | 'RESOURCE_ANALYSIS' | 'ADMIN_CONFIG' | 'CLOUD_BACKUP';

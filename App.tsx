@@ -11,8 +11,10 @@ import CombinedView from './components/CombinedView';
 import DetailsPanel from './components/DetailsPanel';
 import ResourcesPanel from './components/ResourcesPanel';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
+import PrintSettingsModal from './components/PrintSettingsModal';
+import BatchAssignModal from './components/BatchAssignModal';
 import AuthPage from './components/AuthPage';
-import { AlertModal, ConfirmModal, AboutModal, UserSettingsModal, PrintSettingsModal, BatchAssignModal, AdminModal, HelpModal, ColumnSetupModal, UserStatsModal } from './components/Modals';
+import { AlertModal, ConfirmModal, AboutModal, UserSettingsModal, AdminModal, HelpModal, ColumnSetupModal, UserStatsModal, CloudBackupModal } from './components/Modals';
 
 const LIMITS = {
     trial: { activities: 20, resources: 10 },
@@ -24,7 +26,6 @@ const LIMITS = {
 
 const getLimits = (role: string) => {
     const r = role?.toLowerCase() || 'trial';
-    // Match partial keys for flexbility
     if (r.includes('admin')) return LIMITS.admin;
     if (r.includes('premium')) return LIMITS.premium;
     if (r.includes('authorized')) return LIMITS.authorized;
@@ -123,7 +124,10 @@ const App: React.FC = () => {
 
     const checkPermission = (feature: FeatureKey): boolean => {
         if (!authService.hasPermission(currentUser, feature)) {
-            setModalData({ msg: `Access Denied. Feature '${feature}' requires ${currentUser?.role === 'trial' ? 'Authorized' : 'Premium'} or higher role.` });
+            // Special handling for PRINT: Allow but warn/watermark is handled in executePrint
+            if (feature === 'PRINT') return true; 
+
+            setModalData({ msg: `Access Denied. Feature '${feature}' requires Authorized or higher role.` });
             setActiveModal('alert');
             return false;
         }
@@ -157,6 +161,18 @@ const App: React.FC = () => {
         reader.onload = (event) => {
             try {
                 const json = JSON.parse(event.target?.result as string);
+                
+                // LIMIT CHECK FOR IMPORT
+                if (currentUser) {
+                    const limits = getLimits(String(currentUser.role));
+                    const actCount = json.activities?.length || 0;
+                    if (actCount > limits.activities) {
+                        setModalData({ msg: `Import failed. Project contains ${actCount} activities, but your plan allows max ${limits.activities}.` });
+                        setActiveModal('alert');
+                        return;
+                    }
+                }
+
                 setData(json); setIsDirty(false);
             } catch (err) { alert("Failed to parse"); }
         };
@@ -322,7 +338,7 @@ const App: React.FC = () => {
         switch(action) {
             case 'import': fileInputRef.current?.click(); break;
             case 'export': if(checkPermission('EXPORT_FILE')) handleSave(); break;
-            case 'print': if(checkPermission('PRINT')) setActiveModal('print'); break;
+            case 'print': setActiveModal('print'); break; // Permission check handled inside
             case 'copy': 
                  if (selIds.length > 0 && data) {
                     if (view === 'resources') setClipboard({ ids: selIds, type: 'Resources' });
@@ -341,8 +357,17 @@ const App: React.FC = () => {
                  }
                  break;
             case 'paste':
-                if(clipboard && data) {
+                if(clipboard && data && currentUser) {
+                    const limits = getLimits(String(currentUser.role));
+                    
                     if (clipboard.type === 'Resources') {
+                        // Resource Limit Check
+                        if (data.resources.length + clipboard.ids.length > limits.resources) {
+                            setModalData({ msg: `Paste failed. Resource limit (${limits.resources}) exceeded.` });
+                            setActiveModal('alert');
+                            return;
+                        }
+
                         const newResources = clipboard.ids.map(id => {
                             const original = data.resources.find(r => r.id === id);
                             if(!original) return null;
@@ -351,6 +376,13 @@ const App: React.FC = () => {
                         }).filter(x => x) as any;
                         setData(p => p ? { ...p, resources: [...p.resources, ...newResources] } : null);
                     } else if (clipboard.type === 'Activities') {
+                        // Activity Limit Check
+                        if (data.activities.length + clipboard.ids.length > limits.activities) {
+                            setModalData({ msg: `Paste failed. Activity limit (${limits.activities}) exceeded.` });
+                            setActiveModal('alert');
+                            return;
+                        }
+
                         const targetWbsId = selIds.length > 0 ? (data.activities.find(a => a.id === selIds[0])?.wbsId || data.wbs.find(w=>w.id === selIds[0])?.id) : (data.wbs.length > 0 ? data.wbs[0].id : null);
                         if (targetWbsId) {
                             const prefix = data.meta.activityIdPrefix || 'A';
@@ -402,8 +434,12 @@ const App: React.FC = () => {
 
     // --- ENHANCED PRINT LOGIC (P6 Style: Fit TimeScale + Readable Table) ---
     const executePrint = async (settings: PrintSettings) => {
-        // ... (Existing Print Logic)
-        if (!checkPermission('PRINT')) return;
+        // Enforce Watermark for Trial Users regardless of setting
+        const forceWatermark = currentUser?.role === 'trial';
+        const effectiveConfig = forceWatermark 
+            ? { ...adminConfig, enableWatermark: true, watermarkText: "TRIAL VERSION - Planner.cn", watermarkOpacity: 0.15 } 
+            : adminConfig;
+
         if (view !== 'activities') setView('activities');
         await new Promise(r => setTimeout(r, 200));
 
@@ -609,7 +645,7 @@ const App: React.FC = () => {
             const pdfContentHeight = pagePtH - (marginPt * 2);
 
             let wmDataUrl = '';
-            if (adminConfig.enableWatermark) {
+            if (effectiveConfig.enableWatermark) {
                 const wmCanvas = document.createElement('canvas');
                 wmCanvas.width = pagePtW; 
                 wmCanvas.height = pagePtH;
@@ -619,8 +655,8 @@ const App: React.FC = () => {
                     ctx.translate(pagePtW/2, pagePtH/2);
                     ctx.rotate(-30 * Math.PI / 180);
                     ctx.translate(-pagePtW/2, -pagePtH/2);
-                    ctx.globalAlpha = adminConfig.watermarkOpacity || 0.2;
-                    const imgSource = adminConfig.watermarkImage || adminConfig.appLogo;
+                    ctx.globalAlpha = effectiveConfig.watermarkOpacity || 0.2;
+                    const imgSource = effectiveConfig.watermarkImage || effectiveConfig.appLogo;
                     if (imgSource) {
                         const img = new Image();
                         img.src = imgSource;
@@ -630,9 +666,9 @@ const App: React.FC = () => {
                         const drawH = drawW / aspect;
                         ctx.drawImage(img, (pagePtW - drawW)/2, (pagePtH - drawH)/2, drawW, drawH);
                     }
-                    if (adminConfig.watermarkText || (!imgSource && adminConfig.copyrightText)) {
-                        const text = adminConfig.watermarkText || adminConfig.appName;
-                        ctx.font = `bold ${adminConfig.watermarkFontSize || 40}px Arial`;
+                    if (effectiveConfig.watermarkText || (!imgSource && effectiveConfig.copyrightText)) {
+                        const text = effectiveConfig.watermarkText || effectiveConfig.appName;
+                        ctx.font = `bold ${effectiveConfig.watermarkFontSize || 40}px Arial`;
                         ctx.fillStyle = '#94a3b8';
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
@@ -755,7 +791,7 @@ const App: React.FC = () => {
                 onNew={handleNew} 
                 onOpen={(e) => handleOpen(e)}
                 onSave={handleSave}
-                onPrint={() => checkPermission('PRINT') && setActiveModal('print')} 
+                onPrint={() => setActiveModal('print')} 
                 onSettings={() => setActiveModal('project_settings')} 
                 title={data.meta.title} 
                 isDirty={isDirty}
@@ -763,16 +799,33 @@ const App: React.FC = () => {
                 currentUser={currentUser}
                 onLogout={handleLogout}
                 onUserStats={() => setActiveModal('user_stats')}
+                onCloudBackup={() => setActiveModal('cloud_backup')}
             />
             <input type="file" ref={fileInputRef} onChange={handleOpen} className="hidden" accept=".json" />
 
             <div className="flex-grow flex flex-col overflow-hidden">
-                <div className="bg-slate-300 border-b flex px-2 pt-1 gap-1 shrink-0" style={{ fontSize: `${userSettings.uiFontPx || 13}px` }}>
-                    {['Activities', 'Resources'].map(v => (
-                        <button key={v} onClick={() => setView(v.toLowerCase() as any)} className={`px-4 py-1 font-bold rounded-t ${view === v.toLowerCase() ? 'bg-white text-blue-900' : 'text-slate-600 hover:bg-slate-200'}`}>
-                            {v}
-                        </button>
-                    ))}
+                <div className="bg-slate-300 border-b flex px-2 pt-1 gap-1 shrink-0 justify-between items-end" style={{ fontSize: `${userSettings.uiFontPx || 13}px` }}>
+                    <div className="flex gap-1">
+                        {['Activities', 'Resources'].map(v => (
+                            <button key={v} onClick={() => setView(v.toLowerCase() as any)} className={`px-4 py-1 font-bold rounded-t ${view === v.toLowerCase() ? 'bg-white text-blue-900' : 'text-slate-600 hover:bg-slate-200'}`}>
+                                {v}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Zoom Controls moved here */}
+                    {view === 'activities' && (
+                        <div className="flex gap-1 mb-1 mr-2">
+                            {(['day', 'week', 'month', 'quarter', 'year'] as const).map(z => (
+                                <button 
+                                    key={z} 
+                                    onClick={() => setGanttZoom(z)}
+                                    className={`px-2 py-0.5 text-[10px] uppercase font-bold border rounded shadow-sm ${ganttZoom === z ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+                                >
+                                    {z}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {view === 'activities' && (
@@ -838,6 +891,7 @@ const App: React.FC = () => {
             <BatchAssignModal isOpen={activeModal === 'batchRes'} onClose={() => setActiveModal(null)} resources={data.resources} onAssign={handleBatchAssign} lang={userSettings.language} />
             <AdminModal isOpen={activeModal === 'admin'} onClose={() => setActiveModal(null)} onSave={setAdminConfig} />
             <UserStatsModal isOpen={activeModal === 'user_stats'} onClose={() => setActiveModal(null)} />
+            <CloudBackupModal isOpen={activeModal === 'cloud_backup'} onClose={() => setActiveModal(null)} lang={userSettings.language} />
         </div>
     );
 };
