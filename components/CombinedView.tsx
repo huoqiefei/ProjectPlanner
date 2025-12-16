@@ -3,6 +3,9 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { ProjectData, Activity, UserSettings, Predecessor } from '../types';
 import GanttChart from './GanttChart';
 
+// STRICT CONSTANT
+const HEADER_HEIGHT = 50;
+
 interface CombinedViewProps {
     projectData: ProjectData;
     schedule: Activity[];
@@ -15,6 +18,8 @@ interface CombinedViewProps {
     zoomLevel: 'day' | 'week' | 'month' | 'quarter' | 'year';
     onZoomChange: (z: any) => void;
     onDeleteItems: (ids: string[]) => void;
+    showRelations: boolean;
+    showCritical: boolean;
 }
 
 const formatDate = (date: Date): string => {
@@ -61,7 +66,8 @@ const ResizableHeader: React.FC<{
 };
 
 const CombinedView: React.FC<CombinedViewProps> = ({ 
-    projectData, schedule, wbsMap, onUpdate, selectedIds, onSelect, onCtx, userSettings, zoomLevel, onZoomChange 
+    projectData, schedule, wbsMap, onUpdate, selectedIds, onSelect, onCtx, userSettings, zoomLevel, 
+    onZoomChange, showRelations, showCritical
 }) => {
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [colWidths, setColWidths] = useState({ id: 180, name: 250, duration: 60, start: 90, finish: 90, float: 50, preds: 150 });
@@ -109,7 +115,8 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                     expanded: isExp,
                     startDate: wbsInfo?.startDate,
                     endDate: wbsInfo?.endDate,
-                    duration: wbsInfo?.duration
+                    duration: wbsInfo?.duration,
+                    isRoot: node.parentId === null || node.parentId === 'null'
                 });
 
                 if (isExp) {
@@ -152,10 +159,10 @@ const CombinedView: React.FC<CombinedViewProps> = ({
     // Style Helpers
     const fontSizePx = userSettings.uiFontPx || 13;
     const ROW_HEIGHT = Math.max(32, fontSizePx + 16); // Buffer for padding
-    const headerHeight = Math.max(45, fontSizePx * 2.5); // Scaled header
 
     // Editing Logic
-    const startEdit = (id: string, field: string, val: any) => {
+    const startEdit = (id: string, field: string, val: any, isRootWBS: boolean = false) => {
+        if (isRootWBS && (field === 'id' || field === 'name')) return; // Block root edits
         setEditing({id, field});
         if(field === 'predecessors') {
             const act = schedule.find(a => a.id === id);
@@ -181,6 +188,7 @@ const CombinedView: React.FC<CombinedViewProps> = ({
     };
 
     const handleRowClick = (id: string, e: React.MouseEvent) => {
+        // Multi-select logic
         if (e.shiftKey && selectedIds.length > 0) {
             const lastId = selectedIds[selectedIds.length - 1];
             const idx1 = flatRows.findIndex(r => r.id === lastId);
@@ -193,7 +201,27 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                 return;
             }
         }
-        onSelect(e.ctrlKey || e.metaKey ? (selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id]) : [id], true);
+        
+        const isMulti = e.ctrlKey || e.metaKey;
+        if (isMulti) {
+            onSelect(selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id], true);
+        } else {
+            // Standard click - select only one
+            onSelect([id], true);
+        }
+    };
+
+    const handleContextMenu = (id: string, type: string, e: React.MouseEvent) => {
+        e.preventDefault();
+        
+        // Fix: If Right-clicking on an already selected item in a group, DON'T deselect others
+        let newSelection = selectedIds;
+        if (!selectedIds.includes(id)) {
+            newSelection = [id];
+            onSelect(newSelection, true);
+        }
+        
+        onCtx({x:e.clientX, y:e.clientY, id, type, selIds: newSelection});
     };
 
     // Render Logic
@@ -214,8 +242,8 @@ const CombinedView: React.FC<CombinedViewProps> = ({
         <div className="flex flex-grow overflow-hidden border-t border-slate-300 combined-view-container select-none text-slate-800" style={{ fontSize: `${fontSizePx}px` }}>
             {/* LEFT: TABLE */}
             <div className="flex flex-col border-r border-slate-300 bg-white flex-shrink-0" style={{ width: tableWidth + 2 }}>
-                {/* Header */}
-                <div className="p6-header bg-slate-100 border-b border-slate-300 font-bold text-slate-600 flex" style={{ height: headerHeight }}>
+                {/* Header - Fixed Height */}
+                <div className="p6-header bg-slate-100 border-b border-slate-300 font-bold text-slate-600 flex items-center box-border" style={{ height: HEADER_HEIGHT }}>
                     {isColVisible('id') && 
                         <ResizableHeader width={colWidths.id} onResize={w => setColWidths(p => ({...p, id: w}))} dataCol="id">
                             Activity ID
@@ -267,7 +295,7 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                                 className={`p6-row ${bgColor} ${textColor} hover:bg-blue-50 transition-colors cursor-pointer`}
                                 style={{ height: ROW_HEIGHT }}
                                 onClick={(e) => handleRowClick(row.id, e)}
-                                onContextMenu={(e) => { e.preventDefault(); handleRowClick(row.id, e); onCtx({x:e.clientX, y:e.clientY, id:row.id, type:row.type}); }}
+                                onContextMenu={(e) => handleContextMenu(row.id, row.type, e)}
                             >
                                 {/* ID Column */}
                                 {isColVisible('id') && (
@@ -284,7 +312,13 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                                         {editing?.id === row.id && editing.field === 'id' ? (
                                             <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
                                         ) : (
-                                            <span onDoubleClick={() => startEdit(row.id, 'id', row.id)} className="truncate w-full">{row.id}</span>
+                                            <span 
+                                                onDoubleClick={() => startEdit(row.id, 'id', row.id, row.isRoot)} 
+                                                className={`truncate w-full ${row.isRoot ? 'cursor-default' : 'cursor-text'}`}
+                                                title={row.isRoot ? 'Project Code (Read Only)' : row.id}
+                                            >
+                                                {row.id}
+                                            </span>
                                         )}
                                     </div>
                                 )}
@@ -295,7 +329,12 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                                         {editing?.id === row.id && editing.field === 'name' ? (
                                             <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
                                         ) : (
-                                            <span onDoubleClick={() => startEdit(row.id, 'name', row.data.name)} className="truncate w-full">{row.data.name}</span>
+                                            <span 
+                                                onDoubleClick={() => startEdit(row.id, 'name', row.data.name, row.isRoot)} 
+                                                className={`truncate w-full ${row.isRoot ? 'cursor-default' : 'cursor-text'}`}
+                                            >
+                                                {row.data.name}
+                                            </span>
                                         )}
                                     </div>
                                 )}
@@ -358,14 +397,14 @@ const CombinedView: React.FC<CombinedViewProps> = ({
                 activities={schedule}
                 projectStartDate={projectData.meta ? new Date(projectData.meta.projectStartDate) : new Date()} 
                 totalDuration={flatRows.length > 0 ? (flatRows[0].duration || 100) : 100} // Rough est
-                showRelations={true}
-                showCritical={true}
+                showRelations={showRelations}
+                showCritical={showCritical}
                 showGrid={true}
                 zoomLevel={zoomLevel}
                 userSettings={userSettings}
                 rowHeight={ROW_HEIGHT}
                 fontSize={fontSizePx}
-                headerHeight={headerHeight}
+                headerHeight={HEADER_HEIGHT}
                 onScroll={handleGanttScroll}
             />
         </div>

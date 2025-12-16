@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Activity, Resource, Assignment, Calendar, Predecessor, UserSettings } from '../types';
+import { useTranslation } from '../utils/i18n';
 
 interface DetailsPanelProps {
     activity?: Activity;
@@ -13,14 +14,22 @@ interface DetailsPanelProps {
     allActivities?: Activity[];
     isVisible?: boolean;
     onToggle?: () => void;
+    selectedIds?: string[]; // For batch operations
+    onBatchAssign?: (ids: string[]) => void; // Trigger batch assign modal
 }
 
-const DetailsPanel: React.FC<DetailsPanelProps> = ({ activity, resources, assignments, calendars, onUpdate, onAssignUpdate, userSettings, allActivities = [], isVisible = true, onToggle }) => {
+const DetailsPanel: React.FC<DetailsPanelProps> = ({ 
+    activity, resources, assignments, calendars, onUpdate, onAssignUpdate, userSettings, 
+    allActivities = [], isVisible = true, onToggle, selectedIds = [], onBatchAssign 
+}) => {
     const [tab, setTab] = useState('General');
     const [selRes, setSelRes] = useState('');
     const [inputUnits, setInputUnits] = useState(8);
     const [newSuccId, setNewSuccId] = useState('');
-
+    const [batchPredId, setBatchPredId] = useState('');
+    const [batchSuccId, setBatchSuccId] = useState('');
+    
+    const { t } = useTranslation(userSettings.language);
     const fontSizePx = userSettings.uiFontPx || 13;
     
     // Collapsed State View
@@ -33,6 +42,81 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ activity, resources, assign
                 </button>
             </div>
         );
+    }
+
+    // --- BATCH SELECTION MODE ---
+    if (selectedIds.length > 1) {
+        const handleBatchPred = () => {
+            if(!batchPredId) return;
+            selectedIds.forEach(id => {
+                const act = allActivities.find(a => a.id === id);
+                if (act) {
+                    const exists = act.predecessors.some(p => p.activityId === batchPredId);
+                    if (!exists && id !== batchPredId) {
+                        onUpdate(id, 'predecessors', [...act.predecessors, { activityId: batchPredId, type: 'FS', lag: 0 }]);
+                    }
+                }
+            });
+            setBatchPredId('');
+        };
+
+        const handleBatchSucc = () => {
+            if(!batchSuccId) return;
+            const targetAct = allActivities.find(a => a.id === batchSuccId);
+            if (targetAct) {
+                // For each selected ID, add it as a predecessor to the target (making target a successor)
+                let newPreds = [...targetAct.predecessors];
+                selectedIds.forEach(id => {
+                    if (id !== batchSuccId && !newPreds.some(p => p.activityId === id)) {
+                        newPreds.push({ activityId: id, type: 'FS', lag: 0 });
+                    }
+                });
+                onUpdate(targetAct.id, 'predecessors', newPreds);
+            }
+            setBatchSuccId('');
+        };
+
+        return (
+            <div className="h-64 border-t-4 border-slate-300 bg-white flex flex-col flex-shrink-0 shadow-sm" style={{ fontSize: `${fontSizePx}px` }}>
+                <div className="flex bg-slate-100 border-b border-slate-300 px-2 py-1 items-center justify-between h-8">
+                    <span className="font-bold text-slate-700">{t('BatchSelection')}</span>
+                    <button onClick={onToggle} className="text-slate-500 hover:text-blue-600">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                </div>
+                <div className="p-4 flex gap-8">
+                    <div className="w-1/3">
+                        <h4 className="font-bold border-b mb-2">{selectedIds.length} {t('BatchSelectedCount')}</h4>
+                        <p className="text-slate-500 mb-4">{t('BatchInstructions')}</p>
+                        <button 
+                            onClick={() => onBatchAssign && onBatchAssign(selectedIds)} 
+                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full"
+                        >
+                            {t('BatchAssign')}
+                        </button>
+                    </div>
+                    <div className="w-1/3">
+                        <h4 className="font-bold border-b mb-2">Relationships</h4>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs mb-1 font-semibold">{t('BatchPredNote')}</label>
+                                <div className="flex gap-1">
+                                    <input className="border p-1 w-full" placeholder="Activity ID" value={batchPredId} onChange={e => setBatchPredId(e.target.value)} />
+                                    <button onClick={handleBatchPred} className="bg-slate-200 border px-3 rounded hover:bg-slate-300">Add</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs mb-1 font-semibold">{t('BatchSuccNote')}</label>
+                                <div className="flex gap-1">
+                                    <input className="border p-1 w-full" placeholder="Activity ID" value={batchSuccId} onChange={e => setBatchSuccId(e.target.value)} />
+                                    <button onClick={handleBatchSucc} className="bg-slate-200 border px-3 rounded hover:bg-slate-300">Add</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     if (!activity) return (
@@ -51,6 +135,7 @@ const DetailsPanel: React.FC<DetailsPanelProps> = ({ activity, resources, assign
         </div>
     );
 
+    // --- SINGLE ACTIVITY MODE ---
     const myAssigns = assignments.filter(a => a.activityId === activity.id);
     
     const addRes = () => {

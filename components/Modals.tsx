@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserSettings, PrintSettings, Resource, AdminConfig } from '../types';
+import { UserSettings, PrintSettings, Resource, AdminConfig, User } from '../types';
 import { useTranslation } from '../utils/i18n';
 import AdminDashboard from './AdminDashboard';
 
@@ -95,8 +95,9 @@ export const ConfirmModal: React.FC<{ isOpen: boolean, msg: string, onConfirm: (
     );
 };
 
-export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, customCopyright?: string }> = ({ isOpen, onClose, customCopyright }) => {
+export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, customCopyright?: string, currentUser?: User | null, lang?: 'en' | 'zh' }> = ({ isOpen, onClose, customCopyright, currentUser, lang='en' }) => {
     const [content, setContent] = useState('');
+    const { t } = useTranslation(lang as 'en' | 'zh');
 
     useEffect(() => {
         if (isOpen) {
@@ -108,13 +109,23 @@ export const AboutModal: React.FC<{ isOpen: boolean, onClose: () => void, custom
     }, [isOpen]);
 
     return (
-        <BaseModal isOpen={isOpen} title="About" onClose={onClose} footer={
+        <BaseModal isOpen={isOpen} title={t('About')} onClose={onClose} footer={
             <div className="w-full flex justify-between items-center">
                  <span className="text-[10px] text-slate-400">{customCopyright || 'Powered by Planner.cn'}</span>
                  <button onClick={onClose} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">Close</button>
             </div>
         }>
-            <div className="max-h-[60vh] overflow-y-auto">
+            <div className="mb-4 bg-slate-50 p-2 rounded border border-slate-200">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                    <span className="text-slate-500 font-bold">{t('Version')}:</span>
+                    <span>1.0.0</span>
+                    <span className="text-slate-500 font-bold">{t('AuthorizedTo')}:</span>
+                    <span className="font-bold text-blue-800">{currentUser?.name || 'Guest'}</span>
+                    <span className="text-slate-500 font-bold">{t('LicenseType')}:</span>
+                    <span className="uppercase">{currentUser?.role || 'Trial'}</span>
+                </div>
+            </div>
+            <div className="max-h-[50vh] overflow-y-auto">
                  <SimpleMarkdown content={content} />
             </div>
         </BaseModal>

@@ -1,6 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { User } from '../types';
+import { useTranslation } from '../utils/i18n';
 
 interface ToolbarProps {
     onNew: () => void;
@@ -15,6 +16,11 @@ interface ToolbarProps {
     onLogout: () => void;
     onUserStats: () => void;
     onCloudBackup: () => void;
+    showCritical: boolean;
+    setShowCritical: (v: boolean) => void;
+    showLogic: boolean;
+    setShowLogic: (v: boolean) => void;
+    lang: 'en' | 'zh';
 }
 
 const Icons = {
@@ -26,13 +32,19 @@ const Icons = {
     User: <svg className="w-full h-full" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/></svg>,
     Stats: <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
     Logout: <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
-    Cloud: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+    Cloud: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>,
+    Critical: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>,
+    Logic: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
 };
 
-const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSettings, title, isDirty, uiFontPx, currentUser, onLogout, onUserStats, onCloudBackup }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ 
+    onNew, onOpen, onSave, onPrint, onSettings, title, isDirty, uiFontPx, currentUser, 
+    onLogout, onUserStats, onCloudBackup, showCritical, setShowCritical, showLogic, setShowLogic, lang 
+}) => {
     const fileRef = useRef<HTMLInputElement>(null);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
+    const { t } = useTranslation(lang);
 
     const fontSize = uiFontPx || 13;
     const btnSize = Math.max(30, fontSize * 2.2); 
@@ -52,29 +64,51 @@ const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSet
 
     return (
         <div className="bg-slate-100 p-1 border-b border-slate-300 flex items-center gap-1 shadow-sm flex-shrink-0 select-none relative z-40" style={{ height: `${btnSize + 8}px` }}>
-            <button onClick={onNew} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="New">
+            <button onClick={onNew} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('NewProject')}>
                 <div style={{ width: iconSize, height: iconSize }}>{Icons.New}</div>
             </button>
-            <button onClick={() => fileRef.current?.click()} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="Open">
+            <button onClick={() => fileRef.current?.click()} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('OpenProject')}>
                 <div style={{ width: iconSize, height: iconSize }}>{Icons.Open}</div>
             </button>
             <input type="file" ref={fileRef} onChange={onOpen} className="hidden" accept=".json" />
+            
             {title && (
                 <>
-                    <button onClick={onSave} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="Save">
+                    <button onClick={onSave} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('SaveProject')}>
                          <div style={{ width: iconSize, height: iconSize }}>{Icons.Save}</div>
                     </button>
                     <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
-                    <button onClick={onCloudBackup} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="Cloud Backup">
-                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Cloud}</div>
-                    </button>
-                    <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
-                    <button onClick={onSettings} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="User Preferences">
-                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Settings}</div>
-                    </button>
-                    <button onClick={onPrint} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title="Print">
+                    <button onClick={onPrint} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('PrintPreview')}>
                          <div style={{ width: iconSize, height: iconSize }}>{Icons.Print}</div>
                     </button>
+                    <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
+                    
+                    <button 
+                        onClick={() => setShowLogic(!showLogic)} 
+                        style={{ width: btnSize, height: btnSize }} 
+                        className={`flex flex-col items-center justify-center rounded transition-colors ${showLogic ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'hover:bg-slate-200 text-slate-700'}`} 
+                        title={t('ToggleLogic')}
+                    >
+                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Logic}</div>
+                    </button>
+                    <button 
+                        onClick={() => setShowCritical(!showCritical)} 
+                        style={{ width: btnSize, height: btnSize }} 
+                        className={`flex flex-col items-center justify-center rounded transition-colors ${showCritical ? 'bg-red-100 text-red-700 border border-red-300' : 'hover:bg-slate-200 text-slate-700'}`} 
+                        title={t('ToggleCritical')}
+                    >
+                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Critical}</div>
+                    </button>
+
+                    <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
+                    
+                    <button onClick={onCloudBackup} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('CloudBackup')}>
+                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Cloud}</div>
+                    </button>
+                    <button onClick={onSettings} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('UserPreferences')}>
+                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Settings}</div>
+                    </button>
+                    
                     <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
                     <div className="font-bold text-slate-600 px-2 truncate max-w-[300px]" style={{ fontSize: `${fontSize}px` }}>{title} {isDirty ? '*' : ''}</div>
                 </>
@@ -87,7 +121,7 @@ const Toolbar: React.FC<ToolbarProps> = ({ onNew, onOpen, onSave, onPrint, onSet
                         onClick={() => setShowUserMenu(!showUserMenu)}
                         className={`flex items-center gap-2 px-2 rounded hover:bg-slate-200 transition-colors ${showUserMenu ? 'bg-slate-200 ring-2 ring-blue-300' : ''}`}
                         style={{ height: btnSize }}
-                        title="User Profile"
+                        title={t('UserProfile')}
                     >
                         <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center overflow-hidden border border-blue-700 shadow-sm">
                              <div style={{ width: '14px', height: '14px' }}>{Icons.User}</div>

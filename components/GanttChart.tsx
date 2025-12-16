@@ -74,7 +74,12 @@ const GanttChart = forwardRef<HTMLDivElement, GanttChartProps>(({
         const getDaysInYear = (y: number) => (y % 4 === 0 && y % 100 > 0) || y % 400 === 0 ? 366 : 365;
         const getDaysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
 
-        while (iterDate.getTime() <= endTs) {
+        // Safe loop limit check
+        const MAX_ITERATIONS = 5000;
+        let loopCount = 0;
+
+        while (iterDate.getTime() <= endTs && loopCount < MAX_ITERATIONS) {
+            loopCount++;
             const pos = getPosition(iterDate) + (5 * pixelPerDay);
             const ts = iterDate.getTime();
             const year = iterDate.getFullYear();
@@ -82,51 +87,56 @@ const GanttChart = forwardRef<HTMLDivElement, GanttChartProps>(({
             const day = iterDate.getDate();
             const weekDay = iterDate.getDay();
 
-            // Tier 1: Year
+            // Tier 1: Year (Always visible logic)
             if (day === 1 && month === 0) {
                  const yearWidth = getDaysInYear(year) * pixelPerDay;
-                 tier1.push(<text key={`y-${ts}`} x={pos + yearWidth/2} y="12" fill="#334155" fontSize="11" fontWeight="bold" textAnchor="middle">{year}</text>);
+                 tier1.push(<text key={`y-${ts}`} x={pos + yearWidth/2} y="14" fill="#334155" fontSize="12" fontWeight="bold" textAnchor="middle">{year}</text>);
                  tier1.push(<line key={`yl-${ts}`} x1={pos} y1="0" x2={pos} y2={headerHeight} stroke="#94a3b8" strokeWidth="1" />);
             }
 
             // Lower Tiers based on Zoom
-            if (zoomLevel === 'day') {
+            if (zoomLevel === 'day' || zoomLevel === 'week') {
                 if (day === 1) {
                     const monthWidth = getDaysInMonth(year, month) * pixelPerDay;
-                    tier2.push(<text key={`m-${ts}`} x={pos + monthWidth/2} y="26" fill="#475569" fontSize="10" textAnchor="middle">{iterDate.toLocaleDateString(userSettings.language==='zh'?'zh-CN':'en-US', {month:'long'})}</text>);
-                    tier2.push(<line key={`ml-${ts}`} x1={pos} y1="15" x2={pos} y2={headerHeight} stroke="#cbd5e1" strokeWidth="1" />);
+                    tier2.push(<text key={`m-${ts}`} x={pos + monthWidth/2} y="30" fill="#475569" fontSize="11" textAnchor="middle">{iterDate.toLocaleDateString(userSettings.language==='zh'?'zh-CN':'en-US', {month:'long'})}</text>);
+                    tier2.push(<line key={`ml-${ts}`} x1={pos} y1="18" x2={pos} y2={headerHeight} stroke="#cbd5e1" strokeWidth="1" />);
                 }
-                tier3.push(<text key={`d-${ts}`} x={pos + pixelPerDay/2} y="42" fill="#64748b" fontSize="9" textAnchor="middle">{day}</text>);
-                if (weekDay === 0 || weekDay === 6) {
-                    tier3.push(<rect key={`we-${ts}`} x={pos} y="30" width={pixelPerDay} height={headerHeight-30} fill="#f1f5f9" opacity="0.5" />);
+                
+                if (zoomLevel === 'day') {
+                    tier3.push(<text key={`d-${ts}`} x={pos + pixelPerDay/2} y="46" fill="#64748b" fontSize="10" textAnchor="middle">{day}</text>);
+                    tier3.push(<line key={`dl-${ts}`} x1={pos} y1="34" x2={pos} y2={headerHeight} stroke="#e2e8f0" strokeWidth="1" />);
+                    if (weekDay === 0 || weekDay === 6) {
+                        tier3.push(<rect key={`we-${ts}`} x={pos} y="34" width={pixelPerDay} height={headerHeight-34} fill="#f1f5f9" opacity="0.5" />);
+                    }
+                } else if (zoomLevel === 'week' && weekDay === 1) {
+                    // Start of week
+                    tier3.push(<text key={`w-${ts}`} x={pos + 3} y="46" fill="#64748b" fontSize="10">{day}</text>);
+                    tier3.push(<line key={`wl-${ts}`} x1={pos} y1="34" x2={pos} y2={headerHeight} stroke="#e2e8f0" strokeWidth="1" />);
                 }
-                tier3.push(<line key={`dl-${ts}`} x1={pos} y1="30" x2={pos} y2={headerHeight} stroke="#e2e8f0" strokeWidth="1" />);
             } 
-            else if (zoomLevel === 'week') {
-                 if (day === 1) {
-                    const monthWidth = getDaysInMonth(year, month) * pixelPerDay;
-                    tier2.push(<text key={`m-${ts}`} x={pos + monthWidth/2} y="26" fill="#475569" fontSize="10" textAnchor="middle">{iterDate.toLocaleDateString(userSettings.language==='zh'?'zh-CN':'en-US', {month:'short'})}</text>);
-                    tier2.push(<line key={`ml-${ts}`} x1={pos} y1="15" x2={pos} y2={headerHeight} stroke="#cbd5e1" strokeWidth="1" />);
-                }
-                if (weekDay === 1) {
-                    tier3.push(<text key={`w-${ts}`} x={pos + 2} y="42" fill="#64748b" fontSize="9">{day}</text>);
-                    tier3.push(<line key={`wl-${ts}`} x1={pos} y1="30" x2={pos} y2={headerHeight} stroke="#e2e8f0" strokeWidth="1" />);
-                }
-            }
             else if (zoomLevel === 'month') {
                 if (day === 1) {
                     const monthWidth = getDaysInMonth(year, month) * pixelPerDay;
-                    tier2.push(<text key={`m-${ts}`} x={pos + monthWidth/2} y="32" fill="#475569" fontSize="11" textAnchor="middle">{iterDate.toLocaleDateString(userSettings.language==='zh'?'zh-CN':'en-US', {month:'short'})}</text>);
-                    tier2.push(<line key={`ml-${ts}`} x1={pos} y1="15" x2={pos} y2={headerHeight} stroke="#cbd5e1" strokeWidth="1" />);
+                    // Ensure text fits
+                    if (monthWidth > 30) {
+                        tier2.push(<text key={`m-${ts}`} x={pos + monthWidth/2} y="36" fill="#475569" fontSize="11" textAnchor="middle">{iterDate.toLocaleDateString(userSettings.language==='zh'?'zh-CN':'en-US', {month:'short'})}</text>);
+                    }
+                    tier2.push(<line key={`ml-${ts}`} x1={pos} y1="18" x2={pos} y2={headerHeight} stroke="#cbd5e1" strokeWidth="1" />);
                 }
             }
             else if (zoomLevel === 'quarter') {
                  if (day === 1 && month % 3 === 0) {
                      const qWidth = 91 * pixelPerDay;
-                     tier2.push(<text key={`q-${ts}`} x={pos + qWidth/2} y="32" fill="#475569" fontSize="11" textAnchor="middle">Q{Math.floor(month/3)+1}</text>);
-                     tier2.push(<line key={`ql-${ts}`} x1={pos} y1="15" x2={pos} y2={headerHeight} stroke="#cbd5e1" strokeWidth="1" />);
+                     if(qWidth > 20) {
+                        tier2.push(<text key={`q-${ts}`} x={pos + qWidth/2} y="36" fill="#475569" fontSize="11" textAnchor="middle">Q{Math.floor(month/3)+1}</text>);
+                     }
+                     tier2.push(<line key={`ql-${ts}`} x1={pos} y1="18" x2={pos} y2={headerHeight} stroke="#cbd5e1" strokeWidth="1" />);
                  }
             } 
+            else if (zoomLevel === 'year') {
+                // Year text is already handled in tier1, lines only here if strictly needed, but Year Tier handles lines.
+            }
+
             iterDate.setDate(iterDate.getDate() + 1);
         }
         return [...tier1, ...tier2, ...tier3];
@@ -145,7 +155,10 @@ const GanttChart = forwardRef<HTMLDivElement, GanttChartProps>(({
         const interval = userSettings.gridSettings.verticalInterval || 'auto';
 
         if(showVertLines) {
-            while (iterDate.getTime() <= endTs) {
+            const MAX_GRID = 5000;
+            let count = 0;
+            while (iterDate.getTime() <= endTs && count < MAX_GRID) {
+                count++;
                 const pos = getPosition(iterDate) + (5 * pixelPerDay);
                 const day = iterDate.getDate();
                 const weekDay = iterDate.getDay();
@@ -284,7 +297,8 @@ const GanttChart = forwardRef<HTMLDivElement, GanttChartProps>(({
                                             ) : (
                                                 <rect x={left} y={barY} width={width} height={barH} rx="1" fill={barColor} stroke={strokeColor} strokeWidth="1" className="cursor-pointer hover:brightness-110 transition-all" />
                                             )}
-                                            <text x={Math.max(right, left + 12) + 5} y={y + rowHeight/2 + 4} fontSize={fontSize - 1} fill="#475569" fontWeight="500">{activity.name}</text>
+                                            {/* Static font size relative to container to avoid scaling weirdness */}
+                                            <text x={Math.max(right, left + 12) + 5} y={y + rowHeight/2 + 4} fontSize={fontSize} fill="#475569" fontWeight="500">{activity.name}</text>
                                         </g>
                                     );
                                 }
@@ -355,7 +369,7 @@ const GanttChart = forwardRef<HTMLDivElement, GanttChartProps>(({
                                              path = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
                                          }
 
-                                         return <path key={`${predId}-${act.id}`} d={path} fill="none" stroke={lineColor} strokeWidth={isCriticalLink?1.5:1} markerEnd="url(#arrow)" opacity={showRelations ? 1 : 0} />;
+                                         return <path key={`${predId}-${act.id}`} d={path} fill="none" stroke={lineColor} strokeWidth={isCriticalLink?1.5:1} markerEnd="url(#arrow)" opacity={1} />;
                                      });
                                  })}
                             </g>

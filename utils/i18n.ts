@@ -49,7 +49,7 @@ export const translations = {
         Orientation: 'Orientation',
         Landscape: 'Landscape',
         Portrait: 'Portrait',
-        PrintNote: 'Note: Content auto-scales to width. Vertical scrolling supported.',
+        PrintNote: 'Note: Generating high-resolution image for printing. Text remains visual.',
         BatchAssign: 'Batch Assign Resources',
         SelectRes: 'Select Resources',
         UnitsPerDay: 'Units per Day / Total Qty',
@@ -79,7 +79,24 @@ export const translations = {
         ShowCriticalPath: 'Show Critical Path',
         ShowRelationships: 'Show Logic Lines',
         CloudBackup: 'Cloud Backup',
-        CloudSync: 'Cloud Sync'
+        CloudSync: 'Cloud Sync',
+        // Toolbar Tooltips
+        NewProject: 'New Project',
+        OpenProject: 'Open Project',
+        SaveProject: 'Save Project',
+        ToggleCritical: 'Toggle Critical Path',
+        ToggleLogic: 'Toggle Relationship Lines',
+        UserProfile: 'User Profile',
+        // About Modal
+        Version: 'Version',
+        AuthorizedTo: 'Authorized To',
+        LicenseType: 'License Type',
+        // Batch
+        BatchSelection: 'Multiple Activities Selected',
+        BatchSelectedCount: 'items selected',
+        BatchInstructions: 'Select a tab to perform batch operations.',
+        BatchPredNote: 'Add Predecessor to ALL selected',
+        BatchSuccNote: 'Add Successor to ALL selected'
     },
     zh: {
         File: '文件',
@@ -130,7 +147,7 @@ export const translations = {
         Orientation: '方向',
         Landscape: '横向',
         Portrait: '纵向',
-        PrintNote: '注意：内容将自动缩放以适应页面宽度，支持纵向分页。',
+        PrintNote: '注意：系统将生成高清图片以供打印，保持视觉一致性。',
         BatchAssign: '批量分配资源',
         SelectRes: '选择资源',
         UnitsPerDay: '每日用量 / 总量',
@@ -160,7 +177,24 @@ export const translations = {
         ShowCriticalPath: '显示关键路径',
         ShowRelationships: '显示逻辑线',
         CloudBackup: '云端备份',
-        CloudSync: '云同步'
+        CloudSync: '云同步',
+        // Toolbar Tooltips
+        NewProject: '新建项目',
+        OpenProject: '打开项目',
+        SaveProject: '保存项目',
+        ToggleCritical: '显示/隐藏 关键路径',
+        ToggleLogic: '显示/隐藏 逻辑关系线',
+        UserProfile: '用户信息',
+        // About Modal
+        Version: '版本',
+        AuthorizedTo: '授权给',
+        LicenseType: '授权类型',
+        // Batch
+        BatchSelection: '已选中多个作业',
+        BatchSelectedCount: '项已选中',
+        BatchInstructions: '选择选项卡以执行批量操作。',
+        BatchPredNote: '为所有选中项添加紧前作业',
+        BatchSuccNote: '为所有选中项添加紧后作业'
     }
 };
 

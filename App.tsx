@@ -46,6 +46,8 @@ const App: React.FC = () => {
     
     // View State
     const [showDetails, setShowDetails] = useState(true);
+    const [showCritical, setShowCritical] = useState(true);
+    const [showLogic, setShowLogic] = useState(true);
 
     // Modals State
     const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -455,8 +457,8 @@ const App: React.FC = () => {
         const pagePtW = isLandscape ? dims[settings.paperSize].h : dims[settings.paperSize].w;
         const pagePtH = isLandscape ? dims[settings.paperSize].w : dims[settings.paperSize].h;
         
-        // Convert pt to px for HTML2Canvas
-        const ptToPx = 1.3333; 
+        // Use a higher multiplier to ensure crisp text when rendered to image
+        const ptToPx = 3; 
         const marginPt = 20;
         const marginPx = marginPt * ptToPx;
         const pagePxW = pagePtW * ptToPx;
@@ -523,6 +525,7 @@ const App: React.FC = () => {
         }
 
         // --- 3. SMART SCALING: GANTT CHART ---
+        // Force a zoom level that fits comfortably or use the current zoom but ensure readability
         const zoomMap: Record<string, number> = { day: 40, week: 15, month: 5, quarter: 2, year: 0.5 };
         const px = zoomMap[ganttZoom] || 40;
 
@@ -536,7 +539,10 @@ const App: React.FC = () => {
         const diffDays = Math.max(1, (maxEnd - start) / (1000 * 60 * 60 * 24));
         const originalGanttContentWidth = (diffDays + 20) * px; 
 
-        const availableGanttPxW = Math.max(200, contentPxW - tableWidth); 
+        // Auto-zoom logic: if Gantt is too wide for page, we try to scale it down,
+        // but if it's too huge, we let it overflow horizontally or rely on page breaking (future).
+        // Here we just ensure it fills the remaining space.
+        const availableGanttPxW = Math.max(400, contentPxW - tableWidth); 
         
         const allSvgs = clone.querySelectorAll('svg');
         
@@ -544,20 +550,19 @@ const App: React.FC = () => {
             allSvgs.forEach((svg: any) => {
                 const currentH = svg.getAttribute('height') || '100';
                 svg.setAttribute('viewBox', `0 0 ${originalGanttContentWidth} ${currentH}`);
-                svg.setAttribute('width', `${availableGanttPxW}px`); 
-                svg.setAttribute('preserveAspectRatio', 'none'); 
+                // Scale width to fit available space if logic requires "Fit to Page"
+                // But generally preserving aspect ratio is better for gantt
+                // We let it render full width then scale image down to PDF page
+                svg.setAttribute('width', `${Math.max(availableGanttPxW, originalGanttContentWidth)}px`); 
+                svg.setAttribute('preserveAspectRatio', 'xMinYMin meet'); 
             });
 
             const ganttWrappers = clone.querySelectorAll('.gantt-component, .gantt-header-wrapper, .gantt-body-wrapper');
             ganttWrappers.forEach((el: any) => {
-                el.style.width = `${availableGanttPxW}px`;
-                el.style.minWidth = `${availableGanttPxW}px`;
+                el.style.width = `${Math.max(availableGanttPxW, originalGanttContentWidth)}px`;
+                el.style.minWidth = `${Math.max(availableGanttPxW, originalGanttContentWidth)}px`;
                 el.style.overflow = 'hidden';
             });
-        } else {
-             allSvgs.forEach((svg: any) => {
-                svg.setAttribute('width', `${Math.max(400, originalGanttContentWidth)}px`);
-             });
         }
 
         // --- 4. SEPARATE HEADERS FROM BODY ---
@@ -573,7 +578,9 @@ const App: React.FC = () => {
             return;
         }
 
-        const finalTotalWidth = tableWidth + (tableWidth < contentPxW ? availableGanttPxW : Math.max(400, originalGanttContentWidth));
+        // Calculate final assembly width based on what we set above
+        const finalGanttWidth = Math.max(availableGanttPxW, originalGanttContentWidth);
+        const finalTotalWidth = tableWidth + finalGanttWidth;
 
         const headerAssembly = document.createElement('div');
         headerAssembly.style.display = 'flex';
@@ -585,7 +592,7 @@ const App: React.FC = () => {
         tableHeader.style.flexShrink = '0';
         headerAssembly.appendChild(tableHeader);
         
-        ganttHeader.style.width = `${tableWidth < contentPxW ? availableGanttPxW : originalGanttContentWidth}px`;
+        ganttHeader.style.width = `${finalGanttWidth}px`;
         ganttHeader.style.border = 'none'; 
         headerAssembly.appendChild(ganttHeader);
 
@@ -600,7 +607,7 @@ const App: React.FC = () => {
         tableBody.style.flexShrink = '0';
         bodyAssembly.appendChild(tableBody);
 
-        ganttBody.style.width = `${tableWidth < contentPxW ? availableGanttPxW : originalGanttContentWidth}px`;
+        ganttBody.style.width = `${finalGanttWidth}px`;
         ganttBody.style.height = 'auto';
         ganttBody.style.overflow = 'visible';
         bodyAssembly.appendChild(ganttBody);
@@ -625,7 +632,8 @@ const App: React.FC = () => {
         document.body.appendChild(staging);
 
         try {
-            const captureScale = 3; 
+            // High Scale Factor for crisp text
+            const captureScale = 4; 
             const headerCanvas = await html2canvas(headerAssembly, { scale: captureScale, logging: false });
             const bodyCanvas = await html2canvas(bodyAssembly, { scale: captureScale, logging: false });
             
@@ -634,12 +642,15 @@ const App: React.FC = () => {
 
             const pdf = new jsPDF(isLandscape ? 'l' : 'p', 'pt', [pagePtW, pagePtH]);
             const pdfContentWidth = pagePtW - (marginPt * 2);
-            const fitRatio = pdfContentWidth / headerCanvas.width;
+            // We scale the image to fit the PDF width. 
+            // If the gantt is huge, this shrinks it. 
+            // For P6 style "fit times scale", this is acceptable behavior.
+            const fitRatio = pdfContentWidth / (headerCanvas.width / captureScale);
             
-            const pdfHeaderH = headerCanvas.height * fitRatio;
-            const pdfBodyTotalH = bodyCanvas.height * fitRatio;
+            const pdfHeaderH = (headerCanvas.height / captureScale) * fitRatio;
+            const pdfBodyTotalH = (bodyCanvas.height / captureScale) * fitRatio;
             
-            let yOffset = 0; 
+            let yOffset = 0; // source y position in canvas (scaled)
             let heightLeftPts = pdfBodyTotalH; 
 
             const pdfContentHeight = pagePtH - (marginPt * 2);
@@ -681,26 +692,30 @@ const App: React.FC = () => {
             }
 
             while (heightLeftPts > 0) {
-                pdf.addImage(headerCanvas.toDataURL('image/jpeg', 0.9), 'JPEG', marginPt, marginPt, pdfContentWidth, pdfHeaderH);
+                // Add Header on every page
+                pdf.addImage(headerCanvas.toDataURL('image/png', 1.0), 'PNG', marginPt, marginPt, pdfContentWidth, pdfHeaderH);
                 pdf.setDrawColor(203, 213, 225); 
                 pdf.rect(marginPt, marginPt, pdfContentWidth, pdfHeaderH);
 
                 const availableHPts = pdfContentHeight - pdfHeaderH - 10;
                 const sliceHPts = Math.min(heightLeftPts, availableHPts);
-                const sliceHPx = sliceHPts / fitRatio;
+                
+                // Calculate source dimensions
+                const sourceY = yOffset * (bodyCanvas.height / pdfBodyTotalH);
+                const sourceH = sliceHPts * (bodyCanvas.height / pdfBodyTotalH);
                 
                 const sliceCanvas = document.createElement('canvas');
                 sliceCanvas.width = bodyCanvas.width;
-                sliceCanvas.height = sliceHPx; 
+                sliceCanvas.height = sourceH; 
                 
                 const sCtx = sliceCanvas.getContext('2d');
                 if (sCtx) {
                     sCtx.drawImage(
                         bodyCanvas, 
-                        0, yOffset, bodyCanvas.width, sliceHPx, 
+                        0, sourceY, bodyCanvas.width, sourceH, 
                         0, 0, sliceCanvas.width, sliceCanvas.height 
                     );
-                    pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.9), 'JPEG', marginPt, marginPt + pdfHeaderH, pdfContentWidth, sliceHPts);
+                    pdf.addImage(sliceCanvas.toDataURL('image/png', 1.0), 'PNG', marginPt, marginPt + pdfHeaderH, pdfContentWidth, sliceHPts);
                     pdf.rect(marginPt, marginPt + pdfHeaderH, pdfContentWidth, sliceHPts);
                 }
 
@@ -709,7 +724,7 @@ const App: React.FC = () => {
                 }
 
                 heightLeftPts -= sliceHPts;
-                yOffset += sliceHPx;
+                yOffset += sliceHPts; // Increment PDF points
 
                 const pageNum = pdf.getNumberOfPages();
                 pdf.setFontSize(9);
@@ -800,6 +815,11 @@ const App: React.FC = () => {
                 onLogout={handleLogout}
                 onUserStats={() => setActiveModal('user_stats')}
                 onCloudBackup={() => setActiveModal('cloud_backup')}
+                showCritical={showCritical}
+                setShowCritical={setShowCritical}
+                showLogic={showLogic}
+                setShowLogic={setShowLogic}
+                lang={userSettings.language}
             />
             <input type="file" ref={fileInputRef} onChange={handleOpen} className="hidden" accept=".json" />
 
@@ -808,7 +828,7 @@ const App: React.FC = () => {
                     <div className="flex gap-1">
                         {['Activities', 'Resources'].map(v => (
                             <button key={v} onClick={() => setView(v.toLowerCase() as any)} className={`px-4 py-1 font-bold rounded-t ${view === v.toLowerCase() ? 'bg-white text-blue-900' : 'text-slate-600 hover:bg-slate-200'}`}>
-                                {v}
+                                {v === 'Activities' ? (userSettings.language === 'zh' ? '作业' : 'Activities') : (userSettings.language === 'zh' ? '资源' : 'Resources')}
                             </button>
                         ))}
                     </div>
@@ -821,7 +841,7 @@ const App: React.FC = () => {
                                     onClick={() => setGanttZoom(z)}
                                     className={`px-2 py-0.5 text-[10px] uppercase font-bold border rounded shadow-sm ${ganttZoom === z ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
                                 >
-                                    {z}
+                                    {userSettings.language === 'zh' ? (z === 'day' ? '日' : z === 'week' ? '周' : z === 'month' ? '月' : z === 'quarter' ? '季' : '年') : z}
                                 </button>
                             ))}
                         </div>
@@ -843,6 +863,8 @@ const App: React.FC = () => {
                                 zoomLevel={ganttZoom}
                                 onZoomChange={setGanttZoom}
                                 onDeleteItems={handleDeleteItems}
+                                showCritical={showCritical}
+                                showRelations={showLogic}
                             />
                         </div>
                         <DetailsPanel 
@@ -856,6 +878,8 @@ const App: React.FC = () => {
                             allActivities={schedule.activities}
                             isVisible={showDetails}
                             onToggle={() => setShowDetails(!showDetails)}
+                            selectedIds={selIds}
+                            onBatchAssign={(ids) => { setModalData({ ids }); setActiveModal('batchRes'); }}
                         />
                     </>
                 )}
@@ -882,7 +906,13 @@ const App: React.FC = () => {
                 onCancel={() => setActiveModal(null)}
                 lang={userSettings.language} 
             />
-            <AboutModal isOpen={activeModal === 'about'} onClose={() => setActiveModal(null)} customCopyright={adminConfig.copyrightText} />
+            <AboutModal 
+                isOpen={activeModal === 'about'} 
+                onClose={() => setActiveModal(null)} 
+                customCopyright={adminConfig.copyrightText} 
+                currentUser={currentUser}
+                lang={userSettings.language}
+            />
             <HelpModal isOpen={activeModal === 'help'} onClose={() => setActiveModal(null)} />
             <UserSettingsModal isOpen={activeModal === 'user_settings'} settings={userSettings} onSave={setUserSettings} onClose={() => setActiveModal(null)} />
             <PrintSettingsModal isOpen={activeModal === 'print'} onClose={() => setActiveModal(null)} onPrint={executePrint} lang={userSettings.language} />
