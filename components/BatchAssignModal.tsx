@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
-import { Resource, Activity } from '../types';
+import { Resource } from '../types';
 
 interface BatchAssignModalProps {
     isOpen: boolean;
     onClose: () => void;
-    selectedActivityIds: string[];
+    selectedActivityIds?: string[];
     resources: Resource[];
-    onAssign: (resourceId: string, units: number) => void;
+    onAssign: (resourceIds: string[], units: number) => void;
+    lang?: string;
 }
 
-const BatchAssignModal: React.FC<BatchAssignModalProps> = ({ isOpen, onClose, selectedActivityIds, resources, onAssign }) => {
+const BatchAssignModal: React.FC<BatchAssignModalProps> = ({ isOpen, onClose, selectedActivityIds = [], resources, onAssign }) => {
     const [selectedResId, setSelectedResId] = useState('');
     const [units, setUnits] = useState(8);
 
@@ -18,7 +19,7 @@ const BatchAssignModal: React.FC<BatchAssignModalProps> = ({ isOpen, onClose, se
 
     const handleSubmit = () => {
         if (selectedResId) {
-            onAssign(selectedResId, units);
+            onAssign([selectedResId], units);
             onClose();
         }
     };
@@ -44,7 +45,7 @@ const BatchAssignModal: React.FC<BatchAssignModalProps> = ({ isOpen, onClose, se
                         </select>
                     </div>
                     <div>
-                         <label className="block text-gray-400 text-xs mb-1">Units per Day</label>
+                         <label className="block text-gray-400 text-xs mb-1">Units per Day / Total</label>
                          <input 
                             type="number" 
                             className="w-full bg-gray-700 text-white p-2 rounded border border-gray-600"

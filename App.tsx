@@ -888,7 +888,7 @@ const App: React.FC = () => {
             <PrintSettingsModal isOpen={activeModal === 'print'} onClose={() => setActiveModal(null)} onPrint={executePrint} lang={userSettings.language} />
             <ColumnSetupModal isOpen={activeModal === 'columns'} onClose={() => setActiveModal(null)} visibleColumns={userSettings.visibleColumns} onSave={(cols) => setUserSettings({...userSettings, visibleColumns: cols})} lang={userSettings.language} />
             <ProjectSettingsModal isOpen={activeModal === 'project_settings'} onClose={() => setActiveModal(null)} projectData={data} onUpdateProject={handleProjectUpdate} />
-            <BatchAssignModal isOpen={activeModal === 'batchRes'} onClose={() => setActiveModal(null)} resources={data.resources} onAssign={handleBatchAssign} lang={userSettings.language} />
+            <BatchAssignModal isOpen={activeModal === 'batchRes'} onClose={() => setActiveModal(null)} resources={data.resources} onAssign={handleBatchAssign} lang={userSettings.language} selectedActivityIds={modalData?.ids || []} />
             <AdminModal isOpen={activeModal === 'admin'} onClose={() => setActiveModal(null)} onSave={setAdminConfig} />
             <UserStatsModal isOpen={activeModal === 'user_stats'} onClose={() => setActiveModal(null)} />
             <CloudBackupModal isOpen={activeModal === 'cloud_backup'} onClose={() => setActiveModal(null)} lang={userSettings.language} />
