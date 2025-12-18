@@ -4,7 +4,6 @@ import { ProjectData, Activity, UserSettings, Predecessor } from '../types';
 import GanttChart from './GanttChart';
 import { useTranslation } from '../utils/i18n';
 
-// STRICT CONSTANT
 const HEADER_HEIGHT = 50;
 
 interface CombinedViewProps {
@@ -31,14 +30,12 @@ const formatDate = (date: Date): string => {
     return `${y}-${m}-${d}`;
 };
 
-// Helper for Resizable Headers
 const ResizableHeader: React.FC<{ 
     width: number, 
     onResize: (w: number) => void, 
     children: React.ReactNode, 
-    align?: 'left'|'center'|'right',
-    dataCol?: string
-}> = ({ width, onResize, children, align='left', dataCol }) => {
+    align?: 'left'|'center'|'right'
+}> = ({ width, onResize, children, align='left' }) => {
     const handleMouseDown = (e: React.MouseEvent) => {
         const startX = e.pageX;
         const startW = width;
@@ -52,16 +49,9 @@ const ResizableHeader: React.FC<{
         e.stopPropagation();
     };
     return (
-        <div 
-            className="border-r border-slate-300 px-2 h-full flex items-center relative overflow-visible select-none flex-shrink-0" 
-            style={{ width, justifyContent: align==='right'?'flex-end':align==='center'?'center':'flex-start' }}
-            data-col={dataCol}
-        >
+        <div className="border-r border-slate-300 px-2 h-full flex items-center relative overflow-visible select-none flex-shrink-0" style={{ width, justifyContent: align==='right'?'flex-end':align==='center'?'center':'flex-start' }}>
             {children}
-            <div 
-                className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10 hover:w-1.5 transition-all" 
-                onMouseDown={handleMouseDown}
-            ></div>
+            <div className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10" onMouseDown={handleMouseDown}></div>
         </div>
     );
 };
@@ -71,19 +61,16 @@ const CombinedView: React.FC<CombinedViewProps> = ({
     onZoomChange, showRelations, showCritical
 }) => {
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-    const [colWidths, setColWidths] = useState({ id: 180, name: 250, duration: 60, start: 90, finish: 90, float: 50, preds: 150 });
+    const [colWidths, setColWidths] = useState({ id: 160, name: 300, duration: 60, start: 100, finish: 100, float: 60, preds: 150 });
     const { t } = useTranslation(userSettings.language);
     
-    // Editing State
     const [editing, setEditing] = useState<{id: string, field: string} | null>(null);
     const [editVal, setEditVal] = useState('');
 
-    // Refs for Scroll Sync
     const tableBodyRef = useRef<HTMLDivElement>(null);
     const ganttRef = useRef<HTMLDivElement>(null);
     const isScrolling = useRef<'table' | 'gantt' | null>(null);
 
-    // Initialize Expanded State (Expand All by default)
     useEffect(() => {
         if(projectData.wbs.length > 0 && Object.keys(expanded).length === 0) {
             const all: Record<string, boolean> = {};
@@ -92,49 +79,18 @@ const CombinedView: React.FC<CombinedViewProps> = ({
         }
     }, [projectData.wbs.length]);
 
-    const toggleExpand = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        setExpanded(p => ({...p, [id]: !p[id]}));
-    };
-
-    // Flatten Data Logic
     const flatRows = useMemo(() => {
         const rows: any[] = [];
-        if(!projectData) return rows;
-
         const recurse = (parentId: string | null, depth: number) => {
             const childrenWbs = projectData.wbs.filter(w => (parentId === null ? (!w.parentId || w.parentId === 'null') : w.parentId === parentId));
-            
             childrenWbs.forEach(node => {
-                const isExp = expanded[node.id] !== false; // Default true
+                const isExp = expanded[node.id] !== false;
                 const wbsInfo = wbsMap[node.id];
-                
-                rows.push({
-                    type: 'WBS',
-                    id: node.id,
-                    data: node,
-                    depth,
-                    expanded: isExp,
-                    startDate: wbsInfo?.startDate,
-                    endDate: wbsInfo?.endDate,
-                    duration: wbsInfo?.duration,
-                    isRoot: node.parentId === null || node.parentId === 'null'
-                });
-
+                rows.push({ type: 'WBS', id: node.id, data: node, depth, expanded: isExp, startDate: wbsInfo?.startDate, endDate: wbsInfo?.endDate, duration: wbsInfo?.duration, isRoot: !node.parentId || node.parentId === 'null' });
                 if (isExp) {
-                    // Activities
-                    const nodeActs = schedule.filter(a => a.wbsId === node.id);
-                    nodeActs.forEach(act => {
-                        rows.push({
-                            type: 'Activity',
-                            id: act.id,
-                            data: act,
-                            depth: depth + 1,
-                            startDate: act.startDate,
-                            endDate: act.endDate
-                        });
+                    schedule.filter(a => a.wbsId === node.id).forEach(act => {
+                        rows.push({ type: 'Activity', id: act.id, data: act, depth: depth + 1, startDate: act.startDate, endDate: act.endDate });
                     });
-                    // Child WBS
                     recurse(node.id, depth + 1);
                 }
             });
@@ -143,39 +99,27 @@ const CombinedView: React.FC<CombinedViewProps> = ({
         return rows;
     }, [projectData, schedule, wbsMap, expanded]);
 
-    // Scroll Sync Handlers
     const handleTableScroll = (e: React.UIEvent<HTMLDivElement>) => {
         if (isScrolling.current === 'gantt') return;
         isScrolling.current = 'table';
         if (ganttRef.current) ganttRef.current.scrollTop = e.currentTarget.scrollTop;
-        setTimeout(() => { if(isScrolling.current === 'table') isScrolling.current = null; }, 50);
+        setTimeout(() => isScrolling.current = null, 100);
     };
 
     const handleGanttScroll = (e: React.UIEvent<HTMLDivElement>) => {
         if (isScrolling.current === 'table') return;
         isScrolling.current = 'gantt';
         if (tableBodyRef.current) tableBodyRef.current.scrollTop = e.currentTarget.scrollTop;
-        setTimeout(() => { if(isScrolling.current === 'gantt') isScrolling.current = null; }, 50);
+        setTimeout(() => isScrolling.current = null, 100);
     };
 
-    // Style Helpers
-    const fontSizePx = userSettings.uiFontPx || 13;
-    const ROW_HEIGHT = Math.max(32, fontSizePx + 16); // Buffer for padding
-
-    // Editing Logic
-    const startEdit = (id: string, field: string, val: any, isRootWBS: boolean = false) => {
-        if (isRootWBS && (field === 'id' || field === 'name')) return; // Block root edits
+    const startEdit = (id: string, field: string, val: any) => {
         setEditing({id, field});
         if(field === 'predecessors') {
             const act = schedule.find(a => a.id === id);
-            const s = act?.predecessors.map(p => {
-                if(p.type === 'FS' && p.lag === 0) return p.activityId;
-                const lagStr = p.lag > 0 ? `+${p.lag}` : p.lag < 0 ? `${p.lag}` : '';
-                return `${p.activityId}${p.type!=='FS'?p.type:''}${lagStr}`;
-            }).join(',') || '';
-            setEditVal(s);
+            setEditVal(act?.predecessors.map(p => `${p.activityId}${p.type !== 'FS' ? p.type : ''}${p.lag !== 0 ? (p.lag > 0 ? '+' + p.lag : p.lag) : ''}`).join(',') || '');
         } else {
-            setEditVal(String(val));
+            setEditVal(String(val || ''));
         }
     };
 
@@ -184,13 +128,7 @@ const CombinedView: React.FC<CombinedViewProps> = ({
         setEditing(null);
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if(e.key === 'Enter') saveEdit();
-        if(e.key === 'Escape') setEditing(null);
-    };
-
     const handleRowClick = (id: string, e: React.MouseEvent) => {
-        // Multi-select logic
         if (e.shiftKey && selectedIds.length > 0) {
             const lastId = selectedIds[selectedIds.length - 1];
             const idx1 = flatRows.findIndex(r => r.id === lastId);
@@ -198,217 +136,59 @@ const CombinedView: React.FC<CombinedViewProps> = ({
             if (idx1 !== -1 && idx2 !== -1) {
                 const start = Math.min(idx1, idx2);
                 const end = Math.max(idx1, idx2);
-                const range = flatRows.slice(start, end + 1).map(r => r.id);
-                onSelect(e.ctrlKey ? [...new Set([...selectedIds, ...range])] : range, true);
+                onSelect(flatRows.slice(start, end + 1).map(r => r.id), true);
                 return;
             }
         }
-        
-        const isMulti = e.ctrlKey || e.metaKey;
-        if (isMulti) {
-            onSelect(selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id], true);
-        } else {
-            // Standard click - select only one
-            onSelect([id], true);
-        }
+        onSelect(e.ctrlKey || e.metaKey ? (selectedIds.includes(id) ? selectedIds.filter(x => x !== id) : [...selectedIds, id]) : [id], true);
     };
 
-    const handleContextMenu = (id: string, type: string, e: React.MouseEvent) => {
-        e.preventDefault();
-        
-        // Fix: If Right-clicking on an already selected item in a group, DON'T deselect others
-        let newSelection = selectedIds;
-        if (!selectedIds.includes(id)) {
-            newSelection = [id];
-            onSelect(newSelection, true);
-        }
-        
-        onCtx({x:e.clientX, y:e.clientY, id, type, selIds: newSelection});
-    };
-
-    // Render Logic
-    const isColVisible = (id: string) => userSettings.visibleColumns.includes(id);
-
-    // Calculate total table width for layout
-    const tableWidth = (
-        (isColVisible('id') ? colWidths.id : 0) +
-        (isColVisible('name') ? colWidths.name : 0) +
-        (isColVisible('duration') ? colWidths.duration : 0) +
-        (isColVisible('start') ? colWidths.start : 0) +
-        (isColVisible('finish') ? colWidths.finish : 0) +
-        (isColVisible('float') ? colWidths.float : 0) +
-        (isColVisible('preds') ? colWidths.preds : 0)
-    );
+    const ROW_HEIGHT = Math.max(28, (userSettings.uiFontPx || 13) + 12);
+    const tableWidth = colWidths.id + colWidths.name + colWidths.duration + colWidths.start + colWidths.finish + colWidths.float + colWidths.preds;
 
     return (
-        <div className="flex flex-grow overflow-hidden border-t border-slate-300 combined-view-container select-none text-slate-800" style={{ fontSize: `${fontSizePx}px` }}>
-            {/* LEFT: TABLE */}
-            <div className="flex flex-col border-r border-slate-300 bg-white flex-shrink-0" style={{ width: tableWidth + 2 }}>
-                {/* Header - Fixed Height */}
-                <div className="p6-header bg-slate-100 border-b border-slate-300 font-bold text-slate-600 flex items-center box-border" style={{ height: HEADER_HEIGHT }}>
-                    {isColVisible('id') && 
-                        <ResizableHeader width={colWidths.id} onResize={w => setColWidths(p => ({...p, id: w}))} dataCol="id">
-                            {t('ActivityID')}
-                        </ResizableHeader>
-                    }
-                    {isColVisible('name') && 
-                        <ResizableHeader width={colWidths.name} onResize={w => setColWidths(p => ({...p, name: w}))} dataCol="name">
-                            {t('ActivityName')}
-                        </ResizableHeader>
-                    }
-                    {isColVisible('duration') && 
-                        <ResizableHeader width={colWidths.duration} onResize={w => setColWidths(p => ({...p, duration: w}))} align="center" dataCol="duration">
-                            {t('Duration')}
-                        </ResizableHeader>
-                    }
-                    {isColVisible('start') && 
-                        <ResizableHeader width={colWidths.start} onResize={w => setColWidths(p => ({...p, start: w}))} align="center" dataCol="start">
-                            {t('Start')}
-                        </ResizableHeader>
-                    }
-                    {isColVisible('finish') && 
-                        <ResizableHeader width={colWidths.finish} onResize={w => setColWidths(p => ({...p, finish: w}))} align="center" dataCol="finish">
-                            {t('Finish')}
-                        </ResizableHeader>
-                    }
-                    {isColVisible('float') && 
-                        <ResizableHeader width={colWidths.float} onResize={w => setColWidths(p => ({...p, float: w}))} align="center" dataCol="float">
-                            {t('TotalFloat')}
-                        </ResizableHeader>
-                    }
-                    {isColVisible('preds') && 
-                        <ResizableHeader width={colWidths.preds} onResize={w => setColWidths(p => ({...p, preds: w}))} dataCol="preds">
-                            {t('Predecessors')}
-                        </ResizableHeader>
-                    }
+        <div className="flex flex-grow overflow-hidden border-t border-slate-300 bg-white" style={{ fontSize: `${userSettings.uiFontPx || 13}px` }}>
+            <div className="flex flex-col border-r border-slate-300 shrink-0" style={{ width: tableWidth }}>
+                <div className="p6-header flex items-center bg-slate-200 border-b border-slate-300 font-bold text-slate-700" style={{ height: HEADER_HEIGHT }}>
+                    <ResizableHeader width={colWidths.id} onResize={w => setColWidths(p=>({...p, id:w}))}>{t('ActivityID')}</ResizableHeader>
+                    <ResizableHeader width={colWidths.name} onResize={w => setColWidths(p=>({...p, name:w}))}>{t('ActivityName')}</ResizableHeader>
+                    <ResizableHeader width={colWidths.duration} onResize={w => setColWidths(p=>({...p, duration:w}))} align="center">{t('Duration')}</ResizableHeader>
+                    <ResizableHeader width={colWidths.start} onResize={w => setColWidths(p=>({...p, start:w}))} align="center">{t('Start')}</ResizableHeader>
+                    <ResizableHeader width={colWidths.finish} onResize={w => setColWidths(p=>({...p, finish:w}))} align="center">{t('Finish')}</ResizableHeader>
+                    <ResizableHeader width={colWidths.float} onResize={w => setColWidths(p=>({...p, float:w}))} align="center">{t('TotalFloat')}</ResizableHeader>
+                    <ResizableHeader width={colWidths.preds} onResize={w => setColWidths(p=>({...p, preds:w}))}>{t('Predecessors')}</ResizableHeader>
                 </div>
-
-                {/* Body */}
-                <div ref={tableBodyRef} className="flex-grow overflow-y-auto overflow-x-hidden custom-scrollbar bg-white p6-table-body" onScroll={handleTableScroll}>
+                <div ref={tableBodyRef} className="flex-grow overflow-y-auto overflow-x-hidden custom-scrollbar" onScroll={handleTableScroll}>
                     {flatRows.map(row => {
                         const isSel = selectedIds.includes(row.id);
                         const isWBS = row.type === 'WBS';
-                        const bgColor = isSel ? 'bg-blue-100' : (isWBS ? 'bg-slate-50' : 'bg-white');
-                        const textColor = isSel ? 'text-blue-900' : (isWBS ? 'text-blue-800 font-bold' : (row.data.isCritical ? 'text-red-600' : 'text-slate-700'));
-
+                        const isCritical = !isWBS && row.data.isCritical && showCritical;
                         return (
-                            <div 
-                                key={row.id} 
-                                className={`p6-row ${bgColor} ${textColor} hover:bg-blue-50 transition-colors cursor-pointer`}
-                                style={{ height: ROW_HEIGHT }}
-                                onClick={(e) => handleRowClick(row.id, e)}
-                                onContextMenu={(e) => handleContextMenu(row.id, row.type, e)}
-                            >
-                                {/* ID Column */}
-                                {isColVisible('id') && (
-                                    <div className="p6-cell flex items-center" style={{ width: colWidths.id, paddingLeft: `${row.depth * 16 + 4}px` }} data-col="id">
-                                        {isWBS ? (
-                                            <span onClick={(e) => toggleExpand(row.id, e)} className="mr-1 cursor-pointer font-mono text-[10px] w-4 text-center leading-none select-none text-slate-500">
-                                                {row.expanded ? '[-]' : '[+]'}
-                                            </span>
-                                        ) : (
-                                            <span className="mr-1 w-4 text-center font-mono text-[10px] leading-none select-none">
-                                                {row.data.duration === 0 ? <span className="text-purple-600">♦</span> : ''}
-                                            </span>
-                                        )}
-                                        {editing?.id === row.id && editing.field === 'id' ? (
-                                            <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
-                                        ) : (
-                                            <span 
-                                                onDoubleClick={() => startEdit(row.id, 'id', row.id, row.isRoot)} 
-                                                className={`truncate w-full ${row.isRoot ? 'cursor-default' : 'cursor-text'}`}
-                                                title={row.isRoot ? 'Project Code (Read Only)' : row.id}
-                                            >
-                                                {row.id}
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Name Column */}
-                                {isColVisible('name') && (
-                                    <div className="p6-cell flex items-center" style={{ width: colWidths.name }} data-col="name">
-                                        {editing?.id === row.id && editing.field === 'name' ? (
-                                            <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
-                                        ) : (
-                                            <span 
-                                                onDoubleClick={() => startEdit(row.id, 'name', row.data.name, row.isRoot)} 
-                                                className={`truncate w-full ${row.isRoot ? 'cursor-default' : 'cursor-text'}`}
-                                            >
-                                                {row.data.name}
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Duration */}
-                                {isColVisible('duration') && (
-                                    <div className="p6-cell justify-center" style={{ width: colWidths.duration }} data-col="duration">
-                                        {editing?.id === row.id && editing.field === 'duration' && !isWBS ? (
-                                            <input autoFocus className="w-full text-center border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
-                                        ) : (
-                                            <span onDoubleClick={() => !isWBS && startEdit(row.id, 'duration', row.data.duration)}>{isWBS ? (row.duration||0) : row.data.duration}</span>
-                                        )}
-                                    </div>
-                                )}
-
-                                {/* Start */}
-                                {isColVisible('start') && (
-                                    <div className="p6-cell justify-center text-[0.9em]" style={{ width: colWidths.start }} data-col="start">
-                                        {formatDate(row.startDate)}
-                                    </div>
-                                )}
-
-                                {/* Finish */}
-                                {isColVisible('finish') && (
-                                    <div className="p6-cell justify-center text-[0.9em]" style={{ width: colWidths.finish }} data-col="finish">
-                                        {formatDate(row.endDate)}
-                                    </div>
-                                )}
-
-                                {/* Float */}
-                                {isColVisible('float') && (
-                                    <div className="p6-cell justify-center text-[0.9em]" style={{ width: colWidths.float }} data-col="float">
-                                        {!isWBS && row.data.totalFloat}
-                                    </div>
-                                )}
-
-                                {/* Predecessors */}
-                                {isColVisible('preds') && (
-                                    <div className="p6-cell text-[0.85em]" style={{ width: colWidths.preds }} data-col="preds" onDoubleClick={() => !isWBS && startEdit(row.id, 'predecessors', null)}>
-                                        {editing?.id === row.id && editing.field === 'predecessors' ? (
-                                            <input autoFocus className="w-full border px-1" value={editVal} onChange={e => setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={handleKeyDown} />
-                                        ) : (
-                                            <span className="truncate w-full block">
-                                                {!isWBS && row.data.predecessors?.map((p: Predecessor) => `${p.activityId}${p.type!=='FS'?p.type:''}${p.lag!==0?(p.lag>0?'+'+p.lag:p.lag):''}`).join(', ')}
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
+                            <div key={row.id} className={`p6-row ${isSel ? 'selected' : (isWBS ? 'wbs' : '')} ${isCritical ? 'text-red-600 font-medium' : ''}`} 
+                                style={{ height: ROW_HEIGHT }} onClick={e => handleRowClick(row.id, e)} onContextMenu={e => { e.preventDefault(); onCtx({x:e.clientX, y:e.clientY, id:row.id, type:row.type}); }}>
+                                <div className="p6-cell" style={{ width: colWidths.id, paddingLeft: `${row.depth * 16 + 4}px` }}>
+                                    {isWBS && <span onClick={e => { e.stopPropagation(); setExpanded(p=>({...p, [row.id]: !p[row.id]})); }} className="mr-1 cursor-pointer w-4 text-center">{row.expanded ? '▼' : '▶'}</span>}
+                                    <span onDoubleClick={() => startEdit(row.id, 'id', row.id)} className="truncate w-full">{row.id}</span>
+                                </div>
+                                <div className="p6-cell" style={{ width: colWidths.name }}>
+                                    {editing?.id === row.id && editing.field === 'name' ? <input autoFocus className="w-full h-full outline-none px-1" value={editVal} onChange={e=>setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={e=>e.key==='Enter'&&saveEdit()}/> : 
+                                    <span onDoubleClick={() => startEdit(row.id, 'name', row.data.name)} className="truncate w-full">{row.data.name}</span>}
+                                </div>
+                                <div className="p6-cell justify-center" style={{ width: colWidths.duration }}>{isWBS ? row.duration : row.data.duration}</div>
+                                <div className="p6-cell justify-center" style={{ width: colWidths.start }}>{formatDate(row.startDate)}</div>
+                                <div className="p6-cell justify-center" style={{ width: colWidths.finish }}>{formatDate(row.endDate)}</div>
+                                <div className="p6-cell justify-center" style={{ width: colWidths.float }}>{!isWBS && row.data.totalFloat}</div>
+                                <div className="p6-cell" style={{ width: colWidths.preds }}>
+                                    {!isWBS && (editing?.id === row.id && editing.field === 'predecessors' ? <input autoFocus className="w-full h-full outline-none px-1" value={editVal} onChange={e=>setEditVal(e.target.value)} onBlur={saveEdit} onKeyDown={e=>e.key==='Enter'&&saveEdit()}/> : 
+                                    <span onDoubleClick={() => startEdit(row.id, 'predecessors', null)} className="truncate w-full">{row.data.predecessors.map((p:any) => `${p.activityId}${p.type!=='FS'?p.type:''}${p.lag!==0?(p.lag>0?'+'+p.lag:p.lag):''}`).join(',')}</span>)}
+                                </div>
                             </div>
                         );
                     })}
-                    <div className="h-40"></div> {/* Spacer */}
                 </div>
             </div>
-
-            {/* RIGHT: GANTT */}
-            <GanttChart 
-                ref={ganttRef}
-                rows={flatRows} 
-                activities={schedule}
-                projectStartDate={projectData.meta ? new Date(projectData.meta.projectStartDate) : new Date()} 
-                totalDuration={flatRows.length > 0 ? (flatRows[0].duration || 100) : 100} // Rough est
-                showRelations={showRelations}
-                showCritical={showCritical}
-                showGrid={true}
-                zoomLevel={zoomLevel}
-                userSettings={userSettings}
-                rowHeight={ROW_HEIGHT}
-                fontSize={fontSizePx}
-                headerHeight={HEADER_HEIGHT}
-                onScroll={handleGanttScroll}
-            />
+            <GanttChart ref={ganttRef} rows={flatRows} activities={schedule} projectStartDate={new Date(projectData.meta.projectStartDate)} totalDuration={flatRows.length > 0 ? flatRows[0].duration : 100} 
+                showRelations={showRelations} showCritical={showCritical} showGrid={true} zoomLevel={zoomLevel} userSettings={userSettings} rowHeight={ROW_HEIGHT} fontSize={userSettings.uiFontPx || 13} headerHeight={HEADER_HEIGHT} onScroll={handleGanttScroll} />
         </div>
     );
 };

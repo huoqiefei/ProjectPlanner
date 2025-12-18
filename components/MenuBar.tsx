@@ -21,7 +21,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, cur
     const fontSize = uiFontPx || 13;
     const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'administrator';
 
-    // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -34,6 +33,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, cur
 
     const menus = {
         [t('File')]: [
+            { label: t('NewProject'), action: 'new' },
             { label: t('Import'), action: 'import' },
             { label: t('Export'), action: 'export' },
             { type: 'separator' },
@@ -48,11 +48,12 @@ const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, cur
             { label: t('UserPreferences'), action: 'settings' },
         ],
         [t('Project')]: [
+            { label: t('Projects'), action: 'view_projects' },
             { label: t('Activities'), action: 'view_activities' },
             { label: t('Resources'), action: 'view_resources' },
-            { label: t('Calendars'), action: 'calendars' },
             { type: 'separator' },
-            { label: t('CodingRules'), action: 'project_info' }, // Action name kept same for compatibility, Label changed
+            { label: t('Calendars'), action: 'calendars' },
+            { label: t('CodingRules'), action: 'project_info' },
         ],
         [t('System')]: [
             { label: t('Configuration'), action: 'admin' },
@@ -76,30 +77,26 @@ const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, cur
         <div className="bg-slate-200 border-b border-slate-300 flex justify-between select-none h-8 items-center" ref={menuRef} style={{ fontSize: `${fontSize}px` }}>
             <div className="flex h-full items-center">
                 {Object.entries(menus).map(([name, items]) => {
-                    // Restrict System menu to admins based on user group
                     if (name === t('System') && !isAdmin) return null;
-
                     return (
                         <div key={name} className="relative h-full flex items-center">
                             <div 
-                                className={`px-3 h-full flex items-center cursor-pointer hover:bg-slate-300 ${activeMenu === name ? 'bg-slate-300 text-blue-800 font-medium' : 'text-slate-800'}`}
+                                className={`px-3 h-full flex items-center cursor-pointer hover:bg-slate-300 transition-colors ${activeMenu === name ? 'bg-slate-300 text-blue-800 font-bold' : 'text-slate-700 font-medium'}`}
                                 onClick={() => handleMenuClick(name)}
                             >
                                 {name}
                             </div>
                             {activeMenu === name && (
-                                <div className="absolute left-0 top-full bg-white border border-slate-400 shadow-lg min-w-[180px] z-50 py-1">
+                                <div className="absolute left-0 top-full bg-white border border-slate-300 shadow-2xl min-w-[200px] z-50 py-1 rounded-b-sm">
                                     {items.map((item, idx) => {
-                                        if (item.type === 'separator') {
-                                            return <div key={idx} className="h-px bg-slate-200 my-1 mx-2" />;
-                                        }
+                                        if (item.type === 'separator') return <div key={idx} className="h-px bg-slate-200 my-1 mx-2" />;
                                         return (
                                             <div 
                                                 key={idx} 
-                                                className="px-4 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer flex justify-between group whitespace-nowrap"
+                                                className="px-4 py-1.5 hover:bg-blue-600 hover:text-white cursor-pointer flex justify-between items-center group whitespace-nowrap text-slate-700"
                                                 onClick={() => handleItemClick(item.action!)}
                                             >
-                                                <span>{item.label}</span>
+                                                <span className="font-medium">{item.label}</span>
                                             </div>
                                         );
                                     })}
@@ -110,14 +107,15 @@ const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, cur
                 })}
             </div>
             
-            {/* Centered Project Title */}
             {openedProjectsStr && (
-                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 font-semibold text-slate-600 truncate max-w-[400px]">
+                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 font-bold text-slate-500 truncate max-w-[400px]">
                     {openedProjectsStr} {isDirty ? '*' : ''}
                 </div>
             )}
 
-            <div className="w-10"></div> {/* Spacer for symmetry */}
+            <div className="px-4 text-[10px] text-slate-400 font-bold italic uppercase tracking-widest">
+                P6 Interface
+            </div>
         </div>
     );
 };

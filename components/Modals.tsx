@@ -161,11 +161,6 @@ export const AdminModal: React.FC<{ isOpen: boolean, onClose: () => void, onSave
     return <AdminDashboard isOpen={isOpen} onClose={onClose} onSave={onSave} />; 
 };
 
-// ... (Rest of Modals like HelpModal, ColumnSetupModal, etc. remain unchanged) ...
-// Re-exporting unmodified modals for brevity if possible, but XML format requires full file content if changed.
-// Since AboutModal changed, I must provide full content of Modals.tsx or at least the changed parts + context.
-// Providing full file to be safe.
-
 const DEFAULT_MANUAL = `# Planner Web - User Operation Manual
 
 ## 1. Getting Started

@@ -11,384 +11,177 @@ interface DetailsPanelProps {
     onUpdate: (id: string, field: string, value: any) => void;
     onAssignUpdate: (assignments: Assignment[], activityId: string) => void;
     userSettings: UserSettings;
-    allActivities?: Activity[];
-    isVisible?: boolean;
-    onToggle?: () => void;
-    selectedIds?: string[]; // For batch operations
-    onBatchAssign?: (ids: string[]) => void; // Trigger batch assign modal
+    allActivities: Activity[];
+    isVisible: boolean;
+    onToggle: () => void;
+    selectedIds: string[];
+    onBatchAssign?: (resId: string, units: number) => void;
 }
 
 const DetailsPanel: React.FC<DetailsPanelProps> = ({ 
     activity, resources, assignments, calendars, onUpdate, onAssignUpdate, userSettings, 
-    allActivities = [], isVisible = true, onToggle, selectedIds = [], onBatchAssign 
+    allActivities, isVisible, onToggle, selectedIds, onBatchAssign 
 }) => {
     const [tab, setTab] = useState('General');
     const [selRes, setSelRes] = useState('');
     const [inputUnits, setInputUnits] = useState(8);
-    const [newSuccId, setNewSuccId] = useState('');
-    const [batchPredId, setBatchPredId] = useState('');
-    const [batchSuccId, setBatchSuccId] = useState('');
-    
     const { t } = useTranslation(userSettings.language);
-    const fontSizePx = userSettings.uiFontPx || 13;
     
-    // Collapsed State View
-    if (!isVisible) {
-        return (
-            <div className="h-8 border-t bg-slate-100 flex items-center justify-between px-2 flex-shrink-0 cursor-pointer hover:bg-slate-200 transition-colors border-slate-300" onClick={onToggle}>
-                <span className="font-bold text-slate-500 text-xs uppercase tracking-wider">Activity Details</span>
-                <button className="text-slate-500 hover:text-blue-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"/></svg>
-                </button>
-            </div>
-        );
-    }
-
-    // --- BATCH SELECTION MODE ---
-    if (selectedIds.length > 1) {
-        const handleBatchPred = () => {
-            if(!batchPredId) return;
-            selectedIds.forEach(id => {
-                const act = allActivities.find(a => a.id === id);
-                if (act) {
-                    const exists = act.predecessors.some(p => p.activityId === batchPredId);
-                    if (!exists && id !== batchPredId) {
-                        onUpdate(id, 'predecessors', [...act.predecessors, { activityId: batchPredId, type: 'FS', lag: 0 }]);
-                    }
-                }
-            });
-            setBatchPredId('');
-        };
-
-        const handleBatchSucc = () => {
-            if(!batchSuccId) return;
-            const targetAct = allActivities.find(a => a.id === batchSuccId);
-            if (targetAct) {
-                // For each selected ID, add it as a predecessor to the target (making target a successor)
-                let newPreds = [...targetAct.predecessors];
-                selectedIds.forEach(id => {
-                    if (id !== batchSuccId && !newPreds.some(p => p.activityId === id)) {
-                        newPreds.push({ activityId: id, type: 'FS', lag: 0 });
-                    }
-                });
-                onUpdate(targetAct.id, 'predecessors', newPreds);
-            }
-            setBatchSuccId('');
-        };
-
-        return (
-            <div className="h-64 border-t-4 border-slate-300 bg-white flex flex-col flex-shrink-0 shadow-sm" style={{ fontSize: `${fontSizePx}px` }}>
-                <div className="flex bg-slate-100 border-b border-slate-300 px-2 py-1 items-center justify-between h-8">
-                    <span className="font-bold text-slate-700">{t('BatchSelection')}</span>
-                    <button onClick={onToggle} className="text-slate-500 hover:text-blue-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                </div>
-                <div className="p-4 flex gap-8">
-                    <div className="w-1/3">
-                        <h4 className="font-bold border-b mb-2">{selectedIds.length} {t('BatchSelectedCount')}</h4>
-                        <p className="text-slate-500 mb-4">{t('BatchInstructions')}</p>
-                        <button 
-                            onClick={() => onBatchAssign && onBatchAssign(selectedIds)} 
-                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full"
-                        >
-                            {t('BatchAssign')}
-                        </button>
-                    </div>
-                    <div className="w-1/3">
-                        <h4 className="font-bold border-b mb-2">Relationships</h4>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs mb-1 font-semibold">{t('BatchPredNote')}</label>
-                                <div className="flex gap-1">
-                                    <input className="border p-1 w-full" placeholder="Activity ID" value={batchPredId} onChange={e => setBatchPredId(e.target.value)} />
-                                    <button onClick={handleBatchPred} className="bg-slate-200 border px-3 rounded hover:bg-slate-300">Add</button>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs mb-1 font-semibold">{t('BatchSuccNote')}</label>
-                                <div className="flex gap-1">
-                                    <input className="border p-1 w-full" placeholder="Activity ID" value={batchSuccId} onChange={e => setBatchSuccId(e.target.value)} />
-                                    <button onClick={handleBatchSucc} className="bg-slate-200 border px-3 rounded hover:bg-slate-300">Add</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
-    if (!activity) return (
-        <div className="h-64 border-t bg-slate-50 flex flex-col" style={{ fontSize: `${fontSizePx}px` }}>
-            <div className="bg-slate-200 border-b border-slate-300 px-1 pt-1 h-8 flex justify-between items-center">
-                 <div className="flex gap-1 h-full items-end">
-                    <button className="px-4 py-1 uppercase font-bold border-t border-l border-r rounded-t-sm bg-white text-black border-b-white -mb-px">General</button>
-                 </div>
-                 <button onClick={onToggle} className="mr-2 text-slate-500 hover:text-blue-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
-                 </button>
-            </div>
-            <div className="flex-grow flex items-center justify-center text-slate-400">
-                No activity selected
-            </div>
+    if (!isVisible) return (
+        <div className="h-8 border-t bg-slate-100 flex items-center justify-between px-4 cursor-pointer hover:bg-slate-200" onClick={onToggle}>
+            <span className="font-bold text-slate-600 text-[11px] uppercase tracking-wider">{t('DetailsController')}</span>
+            <span className="material-symbols-outlined text-[18px]">expand_less</span>
         </div>
     );
 
-    // --- SINGLE ACTIVITY MODE ---
-    const myAssigns = assignments.filter(a => a.activityId === activity.id);
-    
-    const addRes = () => {
-        if (!selRes) return;
-        const res = resources.find(r => r.id === selRes);
-        if(!res) return;
-
-        let totalToStore = inputUnits;
-        if(res.type !== 'Material' && activity.duration > 0) {
-            totalToStore = inputUnits * activity.duration;
-        }
-
-        onAssignUpdate([...assignments.filter(a => !(a.activityId === activity.id && a.resourceId === selRes)), { activityId: activity.id, resourceId: selRes, units: totalToStore }], activity.id);
-    };
-    
-    const delRes = (rid: string) => onAssignUpdate(assignments.filter(a => !(a.activityId === activity.id && a.resourceId === rid)), activity.id);
-
-    const preds = activity.predecessors || [];
-    const updatePred = (idx: number, field: keyof Predecessor, val: any) => {
-        const newPreds = [...preds];
-        newPreds[idx] = { ...newPreds[idx], [field]: val };
-        onUpdate(activity.id, 'predecessors', newPreds);
-    };
-    const delPred = (idx: number) => {
-        const newPreds = preds.filter((_, i) => i !== idx);
-        onUpdate(activity.id, 'predecessors', newPreds);
-    };
-    const addPred = () => {
-        const newP: Predecessor = { activityId: '', type: 'FS', lag: 0 };
-        onUpdate(activity.id, 'predecessors', [...preds, newP]);
-    };
-
-    const successors = allActivities.filter(a => a.predecessors && a.predecessors.some(p => p.activityId === activity.id));
-    
-    const addSucc = () => {
-        if(!newSuccId) return;
-        const targetAct = allActivities.find(a => a.id === newSuccId);
-        if(targetAct) {
-            const newP: Predecessor = { activityId: activity.id, type: 'FS', lag: 0 };
-            onUpdate(targetAct.id, 'predecessors', [...(targetAct.predecessors || []), newP]);
-            setNewSuccId('');
-        }
-    };
-    const delSucc = (succId: string) => {
-        const targetAct = allActivities.find(a => a.id === succId);
-        if(targetAct) {
-            const newPreds = targetAct.predecessors.filter(p => p.activityId !== activity.id);
-            onUpdate(targetAct.id, 'predecessors', newPreds);
-        }
-    };
-
-    const handleTypeChange = (newType: string) => {
-        onUpdate(activity.id, 'activityType', newType);
-        if (newType.includes('Milestone')) {
-            onUpdate(activity.id, 'duration', 0);
-        }
-    };
-
-    const selResObj = resources.find(r => r.id === selRes);
+    const isBatch = selectedIds.length > 1;
 
     return (
-        <div className="h-64 border-t-4 border-slate-300 bg-white flex flex-col flex-shrink-0 shadow-[0_-2px_5px_rgba(0,0,0,0.05)] transition-all" style={{ fontSize: `${fontSizePx}px` }}>
-            <div className="flex bg-slate-100 border-b border-slate-300 px-1 pt-1 gap-1 select-none h-8 items-end justify-between">
+        <div className="h-72 border-t-4 border-slate-300 bg-white flex flex-col shrink-0 shadow-inner">
+            <div className="flex bg-slate-100 border-b border-slate-300 px-1 pt-1 h-9 items-end justify-between">
                 <div className="flex gap-1 h-full items-end">
-                    {['General', 'Status', 'Resources', 'Relationships'].map(t => (
-                        <button key={t} onClick={() => setTab(t)} className={`px-4 py-1 uppercase font-bold border-t border-l border-r rounded-t-sm outline-none focus:outline-none ${tab === t ? 'bg-white text-black border-b-white -mb-px' : 'text-slate-500 bg-slate-100 border-b-slate-300 hover:bg-slate-50'}`}>{t}</button>
+                    {['General', 'Status', 'Resources', 'Relationships'].map(tName => (
+                        <button key={tName} onClick={() => setTab(tName)} className={`px-5 py-1.5 uppercase font-bold text-[10px] border-t border-l border-r rounded-t-sm transition-all ${tab === tName ? 'bg-white text-blue-700 border-b-white -mb-px shadow-sm' : 'text-slate-400 border-b-slate-300 hover:bg-slate-50'}`}>
+                            {tName}
+                        </button>
                     ))}
                 </div>
-                <button onClick={onToggle} className="mr-2 mb-1 text-slate-500 hover:text-blue-600" title="Collapse">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
+                <button onClick={onToggle} className="mr-2 mb-1 p-1 hover:bg-slate-200 rounded text-slate-400">
+                    <span className="material-symbols-outlined text-[18px]">expand_more</span>
                 </button>
             </div>
-            <div className="p-2 overflow-y-auto flex-grow font-sans">
-                <div className="font-bold text-slate-700 border-b pb-1 mb-2 uppercase">{tab} - {activity.id} : {activity.name}</div>
-                
-                {tab === 'General' && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="space-y-2">
-                            <div>
-                                <label className="block text-slate-500 mb-0.5 font-semibold">Activity ID</label>
-                                <input disabled value={activity.id} className="w-full border border-slate-300 px-1 py-1 bg-slate-50 text-slate-500" style={{ fontSize: `${fontSizePx}px` }} />
-                            </div>
-                            <div>
-                                <label className="block text-slate-500 mb-0.5 font-semibold">Activity Name</label>
-                                <input value={activity.name} onChange={e => onUpdate(activity.id, 'name', e.target.value)} className="w-full border border-slate-300 px-1 py-1" style={{ fontSize: `${fontSizePx}px` }} />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <div>
-                                <label className="block text-slate-500 mb-0.5 font-semibold">Activity Type</label>
-                                <select value={activity.activityType} onChange={e => handleTypeChange(e.target.value)} className="w-full border border-slate-300 px-1 py-1 bg-white" style={{ fontSize: `${fontSizePx}px` }}>
-                                    <option>Task</option>
-                                    <option>Start Milestone</option>
-                                    <option>Finish Milestone</option>
+
+            <div className="flex-grow p-4 overflow-auto custom-scrollbar">
+                {isBatch ? (
+                    <div className="h-full flex flex-col items-center justify-center space-y-4">
+                        <div className="text-slate-400 font-bold uppercase tracking-widest text-xs">{selectedIds.length} {t('BatchSelectedCount')}</div>
+                        <div className="flex gap-4 p-6 border rounded-xl bg-slate-50 border-dashed border-slate-300">
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">{t('Assign')}</label>
+                                <select className="border p-2 rounded bg-white text-xs w-48" value={selRes} onChange={e=>setSelRes(e.target.value)}>
+                                    <option value="">{t('SelectRes')}</option>
+                                    {resources.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-slate-500 mb-0.5 font-semibold">Calendar</label>
-                                <select value={activity.calendarId || ''} onChange={e => onUpdate(activity.id, 'calendarId', e.target.value)} className="w-full border border-slate-300 px-1 py-1 bg-white" style={{ fontSize: `${fontSizePx}px` }}>
-                                    <option value="">Project Default</option>
-                                    {calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase">{t('UnitsPerDay')}</label>
+                                <input type="number" className="border p-2 rounded bg-white text-xs w-24" value={inputUnits} onChange={e=>setInputUnits(Number(e.target.value))}/>
                             </div>
+                            <button onClick={() => selRes && onBatchAssign?.(selRes, inputUnits)} className="self-end bg-blue-600 text-white px-6 py-2 rounded font-bold text-xs hover:bg-blue-700 shadow-lg shadow-blue-600/20">{t('Apply')}</button>
                         </div>
-                        <div className="space-y-2">
-                             <div>
-                                <label className="block text-slate-500 mb-0.5 font-semibold">Original Duration</label>
-                                <div className="flex items-center">
-                                    <input type="number" value={activity.duration} disabled={activity.activityType.includes('Milestone')} onChange={e => onUpdate(activity.id, 'duration', Number(e.target.value))} className={`w-20 border border-slate-300 px-1 py-1 text-right ${activity.activityType.includes('Milestone')?'bg-slate-100':''}`} style={{ fontSize: `${fontSizePx}px` }} />
-                                    <span className="ml-2 text-slate-500">Days</span>
+                    </div>
+                ) : activity ? (
+                    <div className="h-full">
+                        <div className="font-bold text-slate-400 text-[10px] uppercase mb-4 tracking-tighter border-b pb-2 flex justify-between">
+                            <span>{activity.id} : {activity.name}</span>
+                            <span className={activity.isCritical ? 'text-red-500' : 'text-emerald-500'}>{activity.isCritical ? 'CRITICAL' : 'NON-CRITICAL'}</span>
+                        </div>
+                        
+                        {tab === 'General' && (
+                            <div className="grid grid-cols-4 gap-6">
+                                <div className="space-y-4">
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('ActivityID')}</label><input disabled className="w-full border p-2 rounded bg-slate-50 text-xs" value={activity.id}/></div>
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('ActivityName')}</label><input className="w-full border p-2 rounded text-xs" value={activity.name} onChange={e=>onUpdate(activity.id, 'name', e.target.value)}/></div>
+                                </div>
+                                <div className="space-y-4">
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Type</label><select className="w-full border p-2 rounded text-xs bg-white" value={activity.activityType} onChange={e=>onUpdate(activity.id, 'activityType', e.target.value)}><option>Task</option><option>Start Milestone</option><option>Finish Milestone</option></select></div>
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Calendar</label><select className="w-full border p-2 rounded text-xs bg-white" value={activity.calendarId || ''} onChange={e=>onUpdate(activity.id, 'calendarId', e.target.value)}><option value="">Global Default</option>{calendars.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                                </div>
+                                <div className="space-y-4">
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{t('Duration')}</label><input type="number" className="w-full border p-2 rounded text-xs" value={activity.duration} onChange={e=>onUpdate(activity.id, 'duration', Number(e.target.value))}/></div>
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Budgeted Cost</label><input type="number" className="w-full border p-2 rounded text-xs" value={activity.budgetedCost} onChange={e=>onUpdate(activity.id, 'budgetedCost', Number(e.target.value))}/></div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                )}
+                        )}
 
-                {tab === 'Status' && (
-                    <div className="grid grid-cols-4 gap-4">
-                         <div className="border p-2 bg-slate-50">
-                            <label className="font-bold block border-b mb-2 pb-1 uppercase">Duration</label>
-                            <div className="grid grid-cols-2 gap-1">
-                                <label className="text-right text-slate-500 font-semibold">Original:</label> <span>{activity.duration}</span>
-                                <label className="text-right text-slate-500 font-semibold">Remaining:</label> <span>{activity.duration}</span>
+                        {tab === 'Status' && (
+                            <div className="grid grid-cols-3 gap-8 p-4 bg-slate-50 border rounded-lg">
+                                <div className="space-y-2">
+                                    <div className="text-[10px] font-bold text-blue-600 border-b border-blue-100 pb-1">DATES</div>
+                                    <div className="flex justify-between text-xs"><span className="text-slate-400">Start:</span> <span className="font-mono">{new Date(activity.startDate).toLocaleDateString()}</span></div>
+                                    <div className="flex justify-between text-xs"><span className="text-slate-400">Finish:</span> <span className="font-mono">{new Date(activity.endDate).toLocaleDateString()}</span></div>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="text-[10px] font-bold text-blue-600 border-b border-blue-100 pb-1">FLOAT</div>
+                                    <div className="flex justify-between text-xs"><span className="text-slate-400">Total Float:</span> <span className={`font-mono font-bold ${activity.totalFloat <= 0 ? 'text-red-500' : ''}`}>{activity.totalFloat}d</span></div>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="text-[10px] font-bold text-blue-600 border-b border-blue-100 pb-1">PROGRESS</div>
+                                    <div className="w-full h-2 bg-slate-200 rounded-full mt-4"><div className="h-full bg-emerald-500 rounded-full" style={{width: '0%'}}></div></div>
+                                    <div className="text-right text-[10px] text-slate-400 mt-1">0% Complete</div>
+                                </div>
                             </div>
-                         </div>
-                         <div className="border p-2 bg-slate-50">
-                            <label className="font-bold block border-b mb-2 pb-1 uppercase">Dates</label>
-                            <div className="grid grid-cols-2 gap-1">
-                                <label className="text-right text-slate-500 font-semibold">Start:</label> <span>{new Date(activity.startDate).toLocaleDateString()}</span>
-                                <label className="text-right text-slate-500 font-semibold">Finish:</label> <span>{new Date(activity.endDate).toLocaleDateString()}</span>
+                        )}
+
+                        {tab === 'Resources' && (
+                            <div className="h-full flex flex-col">
+                                <div className="flex gap-2 mb-4 border-b pb-4">
+                                    <select className="border p-2 rounded bg-white text-xs w-48" value={selRes} onChange={e=>setSelRes(e.target.value)}>
+                                        <option value="">{t('SelectRes')}</option>
+                                        {resources.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                    </select>
+                                    <input type="number" className="border p-2 rounded bg-white text-xs w-24" value={inputUnits} onChange={e=>setInputUnits(Number(e.target.value))}/>
+                                    <button onClick={() => {
+                                        if(!selRes) return;
+                                        const newAs = [...assignments.filter(a => !(a.activityId === activity.id && a.resourceId === selRes)), { activityId: activity.id, resourceId: selRes, units: inputUnits * activity.duration }];
+                                        onAssignUpdate(newAs, activity.id);
+                                    }} className="bg-slate-800 text-white px-4 py-2 rounded font-bold text-[10px] hover:bg-slate-700">ASSIGN</button>
+                                </div>
+                                <div className="flex-grow overflow-auto border rounded bg-white">
+                                    <table className="w-full text-left text-xs">
+                                        <thead className="bg-slate-100 sticky top-0"><tr><th className="p-2 border-b">Resource Name</th><th className="p-2 border-b">Units/Day</th><th className="p-2 border-b">Total Budget</th><th className="p-2 border-b w-10"></th></tr></thead>
+                                        <tbody>
+                                            {assignments.filter(a => a.activityId === activity.id).map(a => {
+                                                const r = resources.find(res => res.id === a.resourceId);
+                                                return (
+                                                    <tr key={a.resourceId} className="hover:bg-slate-50">
+                                                        <td className="p-2 border-b">{r?.name}</td>
+                                                        <td className="p-2 border-b">{(a.units / (activity.duration || 1)).toFixed(2)}</td>
+                                                        <td className="p-2 border-b">{a.units}</td>
+                                                        <td className="p-2 border-b"><button onClick={() => onAssignUpdate(assignments.filter(x => !(x.activityId === activity.id && x.resourceId === a.resourceId)), activity.id)} className="text-red-400 hover:text-red-600">×</button></td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                         </div>
-                         <div className="border p-2 bg-slate-50">
-                            <label className="font-bold block border-b mb-2 pb-1 uppercase">Float</label>
-                            <div className="grid grid-cols-2 gap-1">
-                                <label className="text-right text-slate-500 font-semibold">Total Float:</label> <span className={`${(activity.totalFloat || 0) <= 0 ? 'text-red-600 font-bold' : ''}`}>{activity.totalFloat}</span>
+                        )}
+
+                        {tab === 'Relationships' && (
+                            <div className="grid grid-cols-2 gap-4 h-full">
+                                <div className="flex flex-col border rounded overflow-hidden">
+                                    <div className="bg-slate-800 text-white p-2 text-[10px] font-bold uppercase tracking-widest">Predecessors</div>
+                                    <div className="flex-grow overflow-auto">
+                                        <table className="w-full text-left text-xs">
+                                            <tbody>
+                                                {activity.predecessors.map((p, i) => (
+                                                    <tr key={i} className="border-b"><td className="p-2 font-bold">{p.activityId}</td><td className="p-2">{p.type}</td><td className="p-2">{p.lag}d</td><td className="p-2 text-right"><button onClick={() => {
+                                                        const np = activity.predecessors.filter((_, idx)=>idx!==i);
+                                                        onUpdate(activity.id, 'predecessors', np);
+                                                    }} className="text-red-400">×</button></td></tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col border rounded overflow-hidden">
+                                    <div className="bg-slate-800 text-white p-2 text-[10px] font-bold uppercase tracking-widest">Successors</div>
+                                    <div className="flex-grow overflow-auto bg-slate-50/50">
+                                        <table className="w-full text-left text-xs">
+                                            <tbody>
+                                                {allActivities.filter(a => a.predecessors.some(p => p.activityId === activity.id)).map(a => (
+                                                    <tr key={a.id} className="border-b"><td className="p-2 font-bold">{a.id}</td><td className="p-2 truncate max-w-[100px]">{a.name}</td></tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
-                         </div>
+                        )}
                     </div>
-                )}
-
-                {tab === 'Resources' && (
-                    <div className="flex h-full gap-4">
-                        <div className="w-64 flex flex-col gap-2 p-2 bg-slate-50 border border-slate-200">
-                            <label className="font-bold text-slate-600">Assign Resource</label>
-                            <select className="border px-1 py-1 w-full" value={selRes} onChange={e => setSelRes(e.target.value)} style={{ fontSize: `${fontSizePx}px` }}>
-                                <option value="">Select Resource...</option>
-                                {resources.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                            </select>
-                            
-                            <label className="font-bold text-slate-600 mt-2">
-                                {selResObj?.type === 'Material' ? 'Total Quantity' : 'Units per Day'}
-                            </label>
-                            <input type="number" className="border px-1 py-1 w-full" value={inputUnits} onChange={e => setInputUnits(Number(e.target.value))} style={{ fontSize: `${fontSizePx}px` }} />
-                            
-                            <button onClick={addRes} className="bg-slate-200 border border-slate-300 px-2 py-1 hover:bg-slate-300 mt-2">Assign</button>
-                        </div>
-                        <div className="flex-grow border border-slate-200 overflow-auto bg-white">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-100 text-slate-600 font-semibold border-b">
-                                    <tr>
-                                        <th className="p-1 pl-2">Resource Name</th>
-                                        <th className="p-1">Type</th>
-                                        <th className="p-1 text-right pr-2">Budgeted Units (Total)</th>
-                                        <th className="p-1 text-right pr-2">Units/Time</th>
-                                        <th className="p-1 w-8"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {myAssigns.map(a => {
-                                        const r = resources.find(res => res.id === a.resourceId);
-                                        const unitsPerTime = (r?.type !== 'Material' && activity.duration > 0) ? (a.units / activity.duration) : '-';
-                                        return (
-                                            <tr key={a.resourceId} className="border-b hover:bg-slate-50">
-                                                <td className="p-1 pl-2">{r?.name}</td>
-                                                <td className="p-1">{r?.type}</td>
-                                                <td className="p-1 text-right pr-2">{a.units.toFixed(1)}</td>
-                                                <td className="p-1 text-right pr-2">{typeof unitsPerTime === 'number' ? unitsPerTime.toFixed(1) : unitsPerTime}</td>
-                                                <td className="p-1 text-center text-red-500 cursor-pointer font-bold" onClick={() => delRes(a.resourceId)}>×</td>
-                                            </tr>
-                                        );
-                                    })}
-                                    {myAssigns.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-slate-400">No resources assigned</td></tr>}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-                {tab === 'Relationships' && (
-                    <div className="flex h-full gap-4">
-                        {/* Predecessors */}
-                        <div className="flex-1 flex flex-col border border-slate-300">
-                             <div className="bg-slate-100 p-1 border-b font-bold text-slate-600 flex justify-between items-center">
-                                 <span>Predecessors</span>
-                                 <button onClick={addPred} className="px-2 py-0.5 bg-white border rounded text-[11px] hover:bg-slate-50">+ Add</button>
-                             </div>
-                             <div className="flex-grow overflow-auto bg-white">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
-                                        <tr>
-                                            <th className="p-1 pl-2">ID</th>
-                                            <th className="p-1 w-16">Type</th>
-                                            <th className="p-1 w-12">Lag</th>
-                                            <th className="p-1 w-6"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {preds.map((p, i) => (
-                                            <tr key={i} className="border-b hover:bg-slate-50">
-                                                <td className="p-1 pl-2"><input className="w-full border-none p-0" value={p.activityId} onChange={e => updatePred(i, 'activityId', e.target.value)} /></td>
-                                                <td className="p-1"><select className="w-full border-none p-0 bg-transparent" value={p.type} onChange={e => updatePred(i, 'type', e.target.value)}><option>FS</option><option>SS</option><option>FF</option><option>SF</option></select></td>
-                                                <td className="p-1"><input type="number" className="w-full border-none p-0" value={p.lag} onChange={e => updatePred(i, 'lag', Number(e.target.value))} /></td>
-                                                <td className="p-1 text-center cursor-pointer text-red-500" onClick={()=>delPred(i)}>×</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                             </div>
-                        </div>
-
-                        {/* Successors */}
-                         <div className="flex-1 flex flex-col border border-slate-300">
-                             <div className="bg-slate-100 p-1 border-b font-bold text-slate-600 flex justify-between items-center">
-                                 <span>Successors</span>
-                                 <div className="flex gap-1">
-                                     <input className="border px-1 py-0.5 w-20 text-[11px]" placeholder="Act ID" value={newSuccId} onChange={e=>setNewSuccId(e.target.value)}/>
-                                     <button onClick={addSucc} className="px-2 py-0.5 bg-white border rounded text-[11px] hover:bg-slate-50">+ Add</button>
-                                 </div>
-                             </div>
-                             <div className="flex-grow overflow-auto bg-white">
-                                <table className="w-full text-left">
-                                    <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
-                                        <tr>
-                                            <th className="p-1 pl-2">ID</th>
-                                            <th className="p-1">Name</th>
-                                            <th className="p-1 w-6"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {successors.map(s => (
-                                            <tr key={s.id} className="border-b hover:bg-slate-50">
-                                                <td className="p-1 pl-2">{s.id}</td>
-                                                <td className="p-1 truncate max-w-[100px]">{s.name}</td>
-                                                <td className="p-1 text-center cursor-pointer text-red-500" onClick={()=>delSucc(s.id)}>×</td>
-                                            </tr>
-                                        ))}
-                                        {successors.length === 0 && <tr><td colSpan={3} className="p-2 text-center text-slate-400">No successors</td></tr>}
-                                    </tbody>
-                                </table>
-                             </div>
-                        </div>
-                    </div>
+                ) : (
+                    <div className="h-full flex items-center justify-center text-slate-300 font-bold uppercase tracking-widest">{t('NoSelectedActivity')}</div>
                 )}
             </div>
         </div>

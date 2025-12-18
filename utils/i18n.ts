@@ -158,7 +158,10 @@ export const translations = {
         Preview3Title: 'Hierarchical WBS',
         Preview4Title: 'Details Controller',
         Preview5Title: 'Global Calendars',
-        Unlimited: 'Unlimited'
+        Unlimited: 'Unlimited',
+        // Details Panel
+        DetailsController: 'Details Controller',
+        NoSelectedActivity: 'Select an activity to view details'
     },
     zh: {
         File: '文件',
@@ -318,7 +321,10 @@ export const translations = {
         Preview3Title: '多级 WBS 结构',
         Preview4Title: '作业详情面板',
         Preview5Title: '全局日历管理',
-        Unlimited: '无限'
+        Unlimited: '无限',
+        // Details Panel
+        DetailsController: '作业详情',
+        NoSelectedActivity: '选择作业以查看详情'
     }
 };
 

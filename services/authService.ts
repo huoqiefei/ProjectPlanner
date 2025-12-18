@@ -29,8 +29,6 @@ class AuthService {
                 throw new Error(data.message || (response.status === 403 ? 'Invalid username or password' : 'Connection failed'));
             }
             
-            // Expected data: { token, user_email, user_display_name, user_role, user_id }
-            // Note: user_role/display_name usually require a WP filter 'jwt_auth_token_before_dispatch'
             const user: User = {
                 id: String(data.user_id || 0),
                 email: data.user_email || email,
@@ -61,9 +59,8 @@ class AuthService {
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.message || 'Registration failed. The email might already be in use.');
+                throw new Error(errData.message || 'Registration failed.');
             }
-            return;
         } catch (error: any) {
             console.error("AuthService.register Error:", error);
             throw error;
@@ -77,8 +74,6 @@ class AuthService {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             });
-            // We return success even if email doesn't exist for security
-            return;
         } catch (error: any) {
             throw new Error("Failed to connect to authentication server.");
         }
