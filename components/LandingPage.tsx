@@ -62,17 +62,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister, adminCon
             </header>
 
             {/* Hero Section */}
-            <main className="flex-grow flex flex-col items-center px-4 text-center max-w-7xl mx-auto w-full pt-20 pb-32">
-                <div className="mb-20 animate-in fade-in slide-in-from-bottom-6 duration-1000 max-w-5xl relative">
+            <main className="flex-grow flex flex-col items-center px-4 text-center max-w-7xl mx-auto w-full pt-20">
+                <div className="mb-20 animate-in fade-in slide-in-from-bottom-6 duration-1000 max-w-6xl relative">
                     <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-blue-100/50 rounded-full blur-[100px] -z-10"></div>
                     <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-4 py-1.5 rounded-full text-[11px] font-bold mb-8 tracking-widest uppercase shadow-sm text-blue-600">
                         <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
                         Enterprise Grade CPM Engine
                     </div>
-                    {/* TAGLINE: Added whitespace-nowrap to prevent wrapping per user request */}
-                    <h1 className="text-4xl md:text-7xl lg:text-8xl font-black leading-[1.05] mb-8 text-slate-900 tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
+                    
+                    {/* TAGLINE: Using whitespace-nowrap and dynamic scaling to ensure NO LINE BREAKS as requested */}
+                    <h1 className="text-3xl sm:text-5xl md:text-7xl lg:text-8xl font-black leading-tight mb-8 text-slate-900 tracking-tighter whitespace-nowrap px-4">
                         {t('HeroTitle')}
                     </h1>
+                    
                     <p className="text-lg md:text-xl text-slate-500 mb-12 max-w-2xl mx-auto leading-relaxed font-medium">
                         {t('HeroDesc')}
                     </p>
@@ -87,7 +89,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister, adminCon
                     </div>
                 </div>
 
-                {/* SHOWCASE SECTION (5 DETAILED SCREENSHOTS) */}
+                {/* SHOWCASE SECTION */}
                 <div id="showcase" className="w-full mb-40 text-left scroll-mt-24">
                     <div className="text-center mb-16">
                         <h2 className="text-4xl font-black text-slate-900 mb-4">{t('ShowcaseTitle')}</h2>
@@ -95,8 +97,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister, adminCon
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        {/* 1. Gantt Console (Professional Simulation) */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group hover:border-blue-400 transition-colors">
+                        {/* 1. Gantt Preview */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group hover:border-blue-400 transition-all">
                             <div className="bg-slate-800 p-3 border-b border-slate-700 flex justify-between items-center">
                                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{t('Preview1Title')}</span>
                                 <div className="flex gap-1.5">
@@ -106,138 +108,86 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister, adminCon
                                 </div>
                             </div>
                             <div className="h-72 bg-white flex flex-col">
-                                <div className="h-10 bg-slate-100 border-b flex items-center px-4 gap-4">
-                                    <div className="w-16 h-3 bg-slate-300 rounded"></div>
-                                    <div className="w-24 h-3 bg-slate-300 rounded"></div>
-                                    <div className="w-12 h-3 bg-slate-300 rounded"></div>
+                                <div className="h-8 bg-slate-100 border-b flex items-center px-4 gap-4">
+                                    <div className="w-16 h-2 bg-slate-300 rounded-full"></div>
+                                    <div className="w-24 h-2 bg-slate-300 rounded-full"></div>
                                 </div>
-                                <div className="flex flex-grow overflow-hidden">
-                                    <div className="w-1/3 border-r p-3 space-y-4">
-                                        {[1,2,3,4,5].map(i => (
-                                            <div key={i} className="flex gap-2">
-                                                <div className={`w-3 h-3 rounded ${i<3?'bg-blue-600':'bg-slate-200'}`}></div>
-                                                <div className="h-3 bg-slate-100 rounded flex-grow"></div>
+                                <div className="flex-grow p-4 space-y-4">
+                                    {[1,2,3,4,5].map(i => (
+                                        <div key={i} className="flex items-center gap-4">
+                                            <div className="w-24 h-2 bg-slate-50 rounded-full"></div>
+                                            <div className="flex-grow bg-slate-50 h-5 relative rounded-sm overflow-hidden">
+                                                <div className={`h-full rounded-sm shadow-sm ${i===3?'bg-red-500 animate-pulse':'bg-emerald-500'}`} style={{ width: `${20+i*10}%`, marginLeft: `${i*5}%` }}></div>
                                             </div>
-                                        ))}
-                                    </div>
-                                    <div className="flex-grow bg-slate-50 p-4 relative overflow-hidden">
-                                        {[1,2,3,4,5].map(i => (
-                                            <div key={i} className={`h-5 mb-4 rounded-sm flex items-center relative shadow-sm ${i===3?'bg-red-500':'bg-emerald-500'}`} style={{ width: `${20+i*10}%`, marginLeft: `${i*8}%` }}>
-                                                <div className="absolute -right-12 text-[8px] font-bold text-slate-400">100%</div>
-                                            </div>
-                                        ))}
-                                        <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40">
-                                            <path d="M 120 40 L 120 80 L 160 80" stroke="#475569" fill="none" strokeWidth="1" />
-                                            <path d="M 180 80 L 180 120 L 220 120" stroke="#475569" fill="none" strokeWidth="1" />
-                                        </svg>
-                                    </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
 
-                        {/* 2. Analytics Engine (Resource Histogram) */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group hover:border-blue-400 transition-colors">
-                            <div className="bg-slate-800 p-3 border-b border-slate-700 flex justify-between items-center">
+                        {/* 2. Analytics Engine */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group hover:border-blue-400 transition-all">
+                            <div className="bg-slate-800 p-3 border-b border-slate-700">
                                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{t('Preview2Title')}</span>
                             </div>
-                            <div className="h-72 bg-white flex flex-col p-6">
-                                <div className="flex justify-between items-center mb-6">
-                                    <div className="flex gap-2">
-                                        <div className="h-6 w-16 bg-blue-100 text-blue-600 text-[10px] font-bold rounded flex items-center justify-center">WEEKLY</div>
-                                        <div className="h-6 w-16 bg-slate-100 text-slate-400 text-[10px] font-bold rounded flex items-center justify-center">MONTHLY</div>
-                                    </div>
-                                    <div className="h-4 w-32 bg-slate-100 rounded"></div>
-                                </div>
-                                <div className="flex-grow flex items-end gap-2 border-l border-b border-slate-100 p-2">
-                                    {[40, 60, 95, 100, 70, 85, 50, 60, 30, 90, 45, 65].map((h, i) => (
-                                        <div key={i} className={`flex-grow rounded-t-sm transition-all duration-700 group-hover:opacity-100 ${h >= 90 ? 'bg-red-500' : 'bg-blue-600'}`} style={{ height: `${h}%` }}></div>
-                                    ))}
-                                    <div className="absolute w-full h-[1px] bg-red-400 bottom-[92%] border-t border-dashed opacity-50 left-0"></div>
-                                </div>
+                            <div className="h-72 bg-slate-50 p-8 flex items-end gap-2.5">
+                                {[40, 65, 80, 100, 75, 90, 50, 60, 35, 95, 45, 70].map((h, i) => (
+                                    <div key={i} className={`flex-grow rounded-t-lg transition-all duration-700 ${h >= 90 ? 'bg-red-500' : 'bg-blue-600'}`} style={{ height: `${h}%` }}></div>
+                                ))}
                             </div>
                         </div>
 
-                        {/* 3. WBS Hierarchy (Enterprise Structure) */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group hover:border-blue-400 transition-colors">
-                            <div className="bg-slate-800 p-3 border-b border-slate-700 flex justify-between items-center">
+                        {/* 3. WBS Hierarchy */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group hover:border-blue-400 transition-all">
+                            <div className="bg-slate-800 p-3 border-b border-slate-700">
                                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{t('Preview3Title')}</span>
                             </div>
-                            <div className="h-72 bg-white p-6 overflow-hidden">
+                            <div className="h-72 bg-white p-6">
                                 <div className="space-y-4">
-                                    <div className="flex items-center gap-3 text-blue-900 font-black text-sm">
-                                        <span className="material-symbols-outlined text-[18px]">account_tree</span> PRJ-2024-POWER_PLANT
-                                    </div>
+                                    <div className="flex items-center gap-3 text-blue-900 font-black"><span className="material-symbols-outlined text-sm">account_tree</span> PRJ-2024-POWER</div>
                                     <div className="ml-8 space-y-4 border-l-2 border-slate-100 pl-4">
-                                        <div className="flex items-center gap-3 text-slate-700 font-bold text-xs">
-                                            <span className="material-symbols-outlined text-[16px] text-yellow-600">folder_open</span> 01 ENGINEERING & DESIGN
+                                        <div className="flex items-center gap-3 text-slate-700 font-bold text-xs"><span className="material-symbols-outlined text-[16px] text-yellow-600">folder_open</span> 01 CIVIL WORKS</div>
+                                        <div className="ml-8 space-y-2 opacity-50">
+                                            <div className="flex items-center gap-2 text-[10px]"><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Excavation Phase</div>
+                                            <div className="flex items-center gap-2 text-[10px]"><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Piling works</div>
                                         </div>
-                                        <div className="ml-8 space-y-3 opacity-60">
-                                            <div className="flex items-center gap-2 text-[11px]"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Conceptual Design</div>
-                                            <div className="flex items-center gap-2 text-[11px]"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Schematic Drawings</div>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-slate-700 font-bold text-xs">
-                                            <span className="material-symbols-outlined text-[16px] text-yellow-600">folder</span> 02 PROCUREMENT
-                                        </div>
-                                        <div className="flex items-center gap-3 text-slate-700 font-bold text-xs">
-                                            <span className="material-symbols-outlined text-[16px] text-yellow-600">folder</span> 03 CONSTRUCTION
-                                        </div>
+                                        <div className="flex items-center gap-3 text-slate-700 font-bold text-xs"><span className="material-symbols-outlined text-[16px] text-yellow-600">folder</span> 02 EQUIPMENT</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* 4. Details Controller (Activity Status) */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group hover:border-blue-400 transition-colors">
-                            <div className="bg-slate-800 p-3 border-b border-slate-700 flex justify-between items-center">
+                        {/* 4. Details Controller */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group hover:border-blue-400 transition-all">
+                            <div className="bg-slate-800 p-3 border-b border-slate-700">
                                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{t('Preview4Title')}</span>
                             </div>
-                            <div className="h-72 bg-white flex flex-col">
-                                <div className="flex border-b text-[10px] font-bold shrink-0">
-                                    <div className="px-5 py-3 border-b-2 border-blue-600 bg-blue-50 text-blue-700 uppercase tracking-tighter">General</div>
-                                    <div className="px-5 py-3 text-slate-400 uppercase tracking-tighter border-r border-slate-50">Status</div>
-                                    <div className="px-5 py-3 text-slate-400 uppercase tracking-tighter border-r border-slate-50">Resources</div>
-                                    <div className="px-5 py-3 text-slate-400 uppercase tracking-tighter border-r border-slate-50">Logic</div>
+                            <div className="h-72 bg-white">
+                                <div className="flex border-b text-[9px] font-black uppercase tracking-widest">
+                                    <div className="px-5 py-3 border-b-2 border-blue-600 bg-blue-50 text-blue-700">General</div>
+                                    <div className="px-5 py-3 text-slate-400">Status</div>
+                                    <div className="px-5 py-3 text-slate-400">Resources</div>
                                 </div>
-                                <div className="p-8 grid grid-cols-2 gap-x-8 gap-y-6">
-                                    <div className="space-y-2">
-                                        <div className="h-2 w-20 bg-slate-100 rounded"></div>
-                                        <div className="h-9 border border-slate-200 rounded-lg bg-slate-50 flex items-center px-3 text-[11px] font-bold text-slate-400">ACT-10293</div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="h-2 w-24 bg-slate-100 rounded"></div>
-                                        <div className="h-9 border border-slate-200 rounded-lg flex items-center px-3 text-[11px] font-medium">Foundation Pouring</div>
-                                    </div>
-                                    <div className="space-y-2 col-span-2">
-                                        <div className="h-2 w-32 bg-slate-100 rounded"></div>
-                                        <div className="h-20 border border-slate-200 rounded-lg p-3">
-                                            <div className="h-2 w-full bg-slate-50 rounded mb-2"></div>
-                                            <div className="h-2 w-2/3 bg-slate-50 rounded"></div>
-                                        </div>
-                                    </div>
+                                <div className="p-8 grid grid-cols-2 gap-6">
+                                    <div className="space-y-2"><div className="h-2 w-12 bg-slate-100 rounded-full"></div><div className="h-9 border border-slate-100 rounded-lg bg-slate-50"></div></div>
+                                    <div className="space-y-2"><div className="h-2 w-20 bg-slate-100 rounded-full"></div><div className="h-9 border border-slate-100 rounded-lg"></div></div>
+                                    <div className="space-y-2 col-span-2"><div className="h-2 w-32 bg-slate-100 rounded-full"></div><div className="h-20 border border-slate-100 rounded-lg"></div></div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* 5. Global Calendars (Working Logic) */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group md:col-span-2 hover:border-blue-400 transition-colors">
-                             <div className="bg-slate-800 p-3 border-b border-slate-700 flex justify-between items-center">
+                        {/* 5. Calendar Preview */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden group md:col-span-2 hover:border-blue-400 transition-all">
+                             <div className="bg-slate-800 p-3 border-b border-slate-700">
                                 <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{t('Preview5Title')}</span>
                             </div>
-                            <div className="h-64 bg-white flex">
-                                <div className="w-64 border-r bg-slate-50 p-4 space-y-2">
-                                    <div className="h-8 bg-white border border-blue-200 rounded px-3 flex items-center text-[10px] font-bold text-blue-700 shadow-sm">Standard 5-Day Work</div>
-                                    <div className="h-8 bg-white border border-slate-100 rounded px-3 flex items-center text-[10px] font-medium text-slate-400">7-Day Continuous</div>
-                                    <div className="h-8 bg-white border border-slate-100 rounded px-3 flex items-center text-[10px] font-medium text-slate-400">Night Shift Only</div>
-                                </div>
-                                <div className="flex-grow p-6 grid grid-cols-7 gap-3">
-                                    {Array.from({length: 28}).map((_, i) => (
-                                        <div key={i} className={`aspect-square border rounded-lg flex items-center justify-center text-[11px] font-bold transition-all ${i%7>4?'bg-slate-100 text-slate-300 border-slate-100':'bg-white text-slate-600 border-slate-200 hover:scale-110 hover:border-blue-500 hover:text-blue-600'}`}>
-                                            {i+1}
-                                            {i===12 && <div className="absolute w-2 h-2 bg-yellow-400 rounded-full animate-ping"></div>}
-                                            {i===12 && <div className="absolute w-2 h-2 bg-yellow-400 rounded-full"></div>}
-                                        </div>
-                                    ))}
-                                </div>
+                            <div className="h-56 bg-white p-6 grid grid-cols-7 gap-3">
+                                {Array.from({length: 28}).map((_, i) => (
+                                    <div key={i} className={`aspect-square border rounded-lg flex items-center justify-center text-[11px] font-bold transition-all ${i%7>4?'bg-slate-100 text-slate-300 border-slate-50':'bg-white text-slate-600 border-slate-200'}`}>
+                                        {i+1}
+                                        {i===12 && <div className="absolute w-2 h-2 bg-yellow-400 rounded-full"></div>}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -338,10 +288,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister, adminCon
                 </div>
 
                 {/* Trusted By Section */}
-                <div className="w-full mb-40 opacity-40 grayscale pointer-events-none">
+                <div className="w-full mb-40 opacity-40 grayscale pointer-events-none px-6">
                      <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24">
-                         {['CONSTRUCTION', 'EPC', 'ENERGY', 'MANUFACTURING', 'IT ARCHITECT'].map(l => (
-                             <span key={l} className="text-xl font-black tracking-[0.3em] text-slate-400 italic">{l}</span>
+                         {['EPC', 'AEC', 'ENERGY', 'MFG', 'CONSULT'].map(l => (
+                             <span key={l} className="text-2xl font-black tracking-widest text-slate-400 italic">{l}</span>
                          ))}
                      </div>
                 </div>
@@ -349,7 +299,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onRegister, adminCon
 
             {/* Premium Footer */}
             <footer className="w-full bg-slate-900 text-white pt-24 pb-12 overflow-hidden relative shrink-0">
-                <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12 mb-20 relative z-10">
+                <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12 mb-20 relative z-10 text-left">
                     <div className="col-span-1 md:col-span-2">
                         <div className="flex items-center gap-2.5 mb-8">
                              <div className="bg-blue-600 w-8 h-8 flex items-center justify-center rounded-lg font-black text-sm">

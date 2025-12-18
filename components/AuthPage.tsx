@@ -43,18 +43,24 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess, adminConfig }) => {
                 const user = await authService.login(email, password);
                 onLoginSuccess(user);
             } else if (mode === 'REGISTER') {
-                if (password !== confirmPass) throw new Error(lang === 'zh' ? "两次密码输入不一致" : "Passwords do not match");
+                if (password !== confirmPass) {
+                    throw new Error(lang === 'zh' ? "两次密码输入不一致" : "Passwords do not match");
+                }
                 await authService.register(email, password, name);
                 setMsg(lang === 'zh' ? "注册成功！现在请登录您的账号。" : "Registration successful! You can now sign in.");
                 setMode('LOGIN');
                 setPassword('');
+                setConfirmPass('');
             } else if (mode === 'FORGOT_PASSWORD') {
                 await authService.resetPassword(email);
                 setMsg(t('ResetLinkSent'));
                 setTimeout(() => setMode('LOGIN'), 5000);
             }
         } catch (err: any) {
-            setError(err.message || 'Authentication error');
+            console.error("Auth Submission Error:", err);
+            // Translate common errors if possible, or show raw server error
+            const rawError = err.message || 'Authentication system error';
+            setError(rawError);
         } finally {
             setLoading(false);
         }
@@ -73,13 +79,13 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess, adminConfig }) => {
     }
 
     return (
-        <div className="fixed inset-0 w-screen h-screen bg-slate-50 flex items-center justify-center text-slate-900 font-sans z-[100] overflow-hidden">
+        <div className="fixed inset-0 w-screen h-screen bg-slate-50 flex items-center justify-center text-slate-900 font-sans z-[200] overflow-hidden">
             {/* Background Decorations */}
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 shadow-sm z-50"></div>
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-blue-600 shadow-sm z-[250]"></div>
             <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-blue-100/40 rounded-full blur-[120px] pointer-events-none"></div>
             <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-indigo-100/40 rounded-full blur-[120px] pointer-events-none"></div>
 
-            <div className="z-10 w-full max-w-md mx-6 animate-in fade-in zoom-in-95 duration-500">
+            <div className="z-[210] w-full max-w-md mx-6 animate-in fade-in zoom-in-95 duration-500">
                 <div className="text-center mb-10">
                     <div 
                         className="cursor-pointer inline-flex items-center gap-3 mb-6 group transition-all" 
@@ -177,9 +183,9 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess, adminConfig }) => {
                         )}
 
                         {error && (
-                            <div className="bg-red-50 text-red-600 text-[11px] p-3.5 rounded-xl border border-red-100 font-bold flex items-center gap-2.5 animate-pulse">
-                                <span className="material-symbols-outlined text-[16px]">warning</span>
-                                {error}
+                            <div className="bg-red-50 text-red-600 text-[11px] p-3.5 rounded-xl border border-red-100 font-bold flex items-center gap-2.5 animate-bounce">
+                                <span className="material-symbols-outlined text-[16px]">error</span>
+                                <span className="flex-grow">{error}</span>
                             </div>
                         )}
                         
@@ -209,14 +215,14 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess, adminConfig }) => {
                     <div className="mt-10 pt-6 border-t border-slate-100 flex flex-col items-center gap-4">
                         {mode === 'LOGIN' ? (
                             <button 
-                                onClick={() => setMode('REGISTER')} 
+                                onClick={() => { setMode('REGISTER'); setError(''); setMsg(''); }} 
                                 className="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors"
                             >
                                 {t('NoAccountYet')}
                             </button>
                         ) : (
                             <button 
-                                onClick={() => setMode('LOGIN')} 
+                                onClick={() => { setMode('LOGIN'); setError(''); setMsg(''); }} 
                                 className="text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors"
                             >
                                 {t('AlreadyHaveAccount')}

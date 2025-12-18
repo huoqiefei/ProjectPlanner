@@ -7,43 +7,44 @@ const USER_KEY = 'planner_user_info';
 
 class AuthService {
     
-    // --- API Interactions ---
-
     async login(email: string, password: string): Promise<User> {
         try {
+            // WordPress JWT Auth expects 'username' and 'password'
             const response = await fetch(API_ENDPOINTS.LOGIN, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify({
-                    username: email, // WordPress JWT plugin typically expects 'username'
+                    username: email,
                     password: password
                 })
             });
 
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.message || 'Login failed');
-            }
-
             const data = await response.json();
+
+            if (!response.ok) {
+                // Return a user-friendly error message from WP or a default one
+                throw new Error(data.message || (response.status === 403 ? 'Invalid username or password' : 'Connection failed'));
+            }
             
-            // data.token is the JWT
-            // data.user_email, data.user_display_name, data.user_role come from our custom PHP filter
-            
+            // Expected data: { token, user_email, user_display_name, user_role, user_id }
+            // Note: user_role/display_name usually require a WP filter 'jwt_auth_token_before_dispatch'
             const user: User = {
                 id: String(data.user_id || 0),
-                email: data.user_email,
-                name: data.user_display_name,
+                email: data.user_email || email,
+                name: data.user_display_name || email.split('@')[0],
                 role: (data.user_role as UserRole) || 'trial',
-                createdAt: new Date().toISOString() // API doesn't usually return this in token, placeholder
+                createdAt: new Date().toISOString()
             };
 
             this.setSession(data.token, user);
             return user;
 
         } catch (error: any) {
-            console.error("Login Error:", error);
-            throw new Error(error.message || "Connection to server failed");
+            console.error("AuthService.login Error:", error);
+            throw error;
         }
     }
 
@@ -51,44 +52,37 @@ class AuthService {
         try {
             const response = await fetch(API_ENDPOINTS.REGISTER, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify({ email, password, name })
             });
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.message || 'Registration failed');
+                throw new Error(errData.message || 'Registration failed. The email might already be in use.');
             }
-            
-            // Registration successful, user must now login
             return;
         } catch (error: any) {
-            throw new Error(error.message || "Registration failed");
+            console.error("AuthService.register Error:", error);
+            throw error;
         }
     }
 
     async resetPassword(email: string): Promise<void> {
         try {
-            const response = await fetch(API_ENDPOINTS.RESET_PASSWORD, {
+            await fetch(API_ENDPOINTS.RESET_PASSWORD, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             });
-
-            if (!response.ok) {
-                 // We generally don't want to expose if email exists or not for security,
-                 // but for debugging we log it.
-                 console.warn("Reset password request failed");
-            }
+            // We return success even if email doesn't exist for security
             return;
         } catch (error: any) {
-            throw new Error(error.message || "Failed to send reset link");
+            throw new Error("Failed to connect to authentication server.");
         }
     }
-
-    // Note: mockForceChangePassword is removed as we now rely on WP email flow
-
-    // --- Session Management ---
 
     logout() {
         localStorage.removeItem(SESSION_KEY);
@@ -115,40 +109,22 @@ class AuthService {
         localStorage.setItem(USER_KEY, JSON.stringify(user));
     }
 
-    // --- Permissions Logic (Same as before) ---
-
     hasPermission(user: User | null, feature: FeatureKey): boolean {
         if (!user) return false;
-        // Map WP 'administrator' to our internal 'admin' role if needed
-        const role = user.role === 'administrator' ? 'admin' : user.role;
-
-        if (role === 'admin') return true;
+        const role = user.role?.toLowerCase() || 'trial';
+        if (role === 'admin' || role === 'administrator') return true;
 
         switch (feature) {
             case 'SAVE_PROJECT':
             case 'EXPORT_FILE':
             case 'PRINT':
-                return ['authorized', 'premium', 'administrator'].includes(role);
-            
+                return ['authorized', 'premium', 'administrator', 'admin'].includes(role);
             case 'BATCH_ASSIGN':
             case 'RESOURCE_ANALYSIS':
-                return ['premium', 'administrator'].includes(role);
-            
-            case 'ADMIN_CONFIG':
-                return false; // Only strict admin
-            
+            case 'CLOUD_BACKUP':
+                return ['premium', 'administrator', 'admin'].includes(role);
             default:
                 return true;
-        }
-    }
-
-    getRoleLabel(role: string): string {
-        switch(role) {
-            case 'trial': return 'Trial User';
-            case 'authorized': return 'Authorized User';
-            case 'premium': return 'Premium User';
-            case 'admin': case 'administrator': return 'Administrator';
-            default: return 'User';
         }
     }
 }
