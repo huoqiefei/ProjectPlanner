@@ -9,9 +9,11 @@ interface MenuBarProps {
     uiSize: UISize;
     uiFontPx?: number;
     currentUser: User | null;
+    openedProjectsStr?: string;
+    isDirty?: boolean;
 }
 
-const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, currentUser }) => {
+const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, currentUser, openedProjectsStr, isDirty }) => {
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const { t } = useTranslation(lang);
@@ -48,8 +50,9 @@ const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, cur
         [t('Project')]: [
             { label: t('Activities'), action: 'view_activities' },
             { label: t('Resources'), action: 'view_resources' },
+            { label: t('Calendars'), action: 'calendars' },
             { type: 'separator' },
-            { label: t('ProjectInfo'), action: 'project_info' },
+            { label: t('CodingRules'), action: 'project_info' }, // Action name kept same for compatibility, Label changed
         ],
         [t('System')]: [
             { label: t('Configuration'), action: 'admin' },
@@ -106,7 +109,15 @@ const MenuBar: React.FC<MenuBarProps> = ({ onAction, lang, uiSize, uiFontPx, cur
                     );
                 })}
             </div>
-            {/* User Info moved to Toolbar */}
+            
+            {/* Centered Project Title */}
+            {openedProjectsStr && (
+                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 font-semibold text-slate-600 truncate max-w-[400px]">
+                    {openedProjectsStr} {isDirty ? '*' : ''}
+                </div>
+            )}
+
+            <div className="w-10"></div> {/* Spacer for symmetry */}
         </div>
     );
 };

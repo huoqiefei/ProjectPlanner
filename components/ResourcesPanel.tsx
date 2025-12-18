@@ -11,25 +11,10 @@ interface ResourcesPanelProps {
     selectedIds: string[];
     onSelect: (ids: string[]) => void;
     userRole?: string;
+    onCtx: (data: any) => void;
 }
 
 type ZoomLevel = 'Day' | 'Week' | 'Month' | 'Quarter' | 'Year';
-
-const LIMITS = {
-    trial: { activities: 20, resources: 10 },
-    authorized: { activities: 500, resources: 200 },
-    premium: { activities: Infinity, resources: Infinity },
-    admin: { activities: Infinity, resources: Infinity },
-    administrator: { activities: Infinity, resources: Infinity }
-};
-
-const getLimits = (role: string) => {
-    const r = role?.toLowerCase() || 'trial';
-    if (r.includes('admin')) return LIMITS.admin;
-    if (r.includes('premium')) return LIMITS.premium;
-    if (r.includes('authorized')) return LIMITS.authorized;
-    return LIMITS.trial;
-};
 
 const ResizableHeader: React.FC<{ width: number, onResize: (w: number) => void, children: React.ReactNode, align?: 'left'|'center'|'right' }> = ({ width, onResize, children, align='left' }) => {
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -51,11 +36,10 @@ const ResizableHeader: React.FC<{ width: number, onResize: (w: number) => void, 
     );
 };
 
-const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments, activities, onUpdateResources, userSettings, selectedIds, onSelect, userRole }) => {
+const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments, activities, onUpdateResources, userSettings, selectedIds, onSelect, userRole, onCtx }) => {
     const [tab, setTab] = useState<'General' | 'Histogram'>('General');
     const [zoom, setZoom] = useState<ZoomLevel>('Week');
     const [colWidths, setColWidths] = useState({ id: 100, name: 300, type: 80, unit: 60, max: 100 });
-    const [ctx, setCtx] = useState<{x:number, y:number, id:string} | null>(null);
     const [editing, setEditing] = useState<{id:string, field:string} | null>(null);
     const [val, setVal] = useState('');
     const [lastClickedIndex, setLastClickedIndex] = useState<number>(-1);
@@ -69,33 +53,6 @@ const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments,
     // Dynamic Sizes based on User Settings
     const fontSizePx = userSettings.uiFontPx || 13;
     const ROW_HEIGHT = Math.max(28, fontSizePx + 15);
-
-    const generateResId = () => {
-        const max = resources.reduce((m, r) => {
-            const match = r.id.match(/(\d+)/);
-            return match ? Math.max(m, parseInt(match[1])) : m;
-        }, 1000);
-        return `R${max + 10}`;
-    };
-
-    const addRes = () => {
-        const limits = getLimits(userRole || 'trial');
-        if (resources.length >= limits.resources) {
-            alert(`Plan limit reached. Your '${userRole}' plan allows max ${limits.resources} resources.`);
-            return;
-        }
-
-        const newRes: Resource = { id: generateResId(), name: 'New Resource', type: 'Labor', unit: 'h', maxUnits: 8 };
-        onUpdateResources([...resources, newRes]);
-        onSelect([newRes.id]);
-        setCtx(null);
-    };
-
-    const deleteRes = (id: string) => {
-        onUpdateResources(resources.filter(r => r.id !== id));
-        if (selResId === id) onSelect([]);
-        setCtx(null);
-    };
 
     const updateRes = (id: string, field: keyof Resource, val: any) => {
         onUpdateResources(resources.map(r => r.id === id ? { ...r, [field]: val } : r));
@@ -112,9 +69,8 @@ const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments,
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if(e.key === 'Delete' && selResId && !editing) {
-            deleteRes(selResId);
-        }
+        if(e.key === 'Enter') saveEdit();
+        if(e.key === 'Escape') setEditing(null);
     };
 
     const handleRowClick = (id: string, index: number, event: React.MouseEvent) => {
@@ -128,6 +84,16 @@ const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments,
             setLastClickedIndex(index);
             onSelect(event.ctrlKey || event.metaKey ? (selectedIds.includes(id) ? selectedIds.filter(x=>x!==id) : [...selectedIds, id]) : [id]);
         }
+    };
+
+    const handleContextMenu = (e: React.MouseEvent, id: string) => {
+        e.preventDefault();
+        let newSelection = selectedIds;
+        if (!selectedIds.includes(id)) {
+            newSelection = [id];
+            onSelect(newSelection);
+        }
+        onCtx({ x: e.clientX, y: e.clientY, type: 'Resource', id, selIds: newSelection });
     };
 
     const histogramData = useMemo(() => {
@@ -201,12 +167,12 @@ const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments,
     };
 
     return (
-        <div className="flex flex-col h-full bg-white select-none outline-none" onClick={() => setCtx(null)} style={{ fontSize: `${fontSizePx}px` }} tabIndex={0} onKeyDown={handleKeyDown}>
+        <div className="flex flex-col h-full bg-white select-none outline-none" style={{ fontSize: `${fontSizePx}px` }} tabIndex={0} onKeyDown={handleKeyDown}>
             {/* Top: Resource Table */}
             <div className={`flex-grow flex flex-col overflow-hidden border-b-4 border-slate-300 ${isDetailsVisible ? 'h-1/2' : 'h-full'}`}>
                 <div className="p6-header">
                     <div className="w-8 border-r px-1 text-center font-bold text-slate-500">
-                        <button onClick={addRes} className="text-green-600 hover:text-green-800 text-lg leading-none">+</button>
+                       <span className="text-xs">👤</span>
                     </div>
                     <ResizableHeader width={colWidths.id} onResize={w=>setColWidths({...colWidths, id:w})}>ID</ResizableHeader>
                     <ResizableHeader width={colWidths.name} onResize={w=>setColWidths({...colWidths, name:w})}>Resource Name</ResizableHeader>
@@ -214,14 +180,16 @@ const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments,
                     <ResizableHeader width={colWidths.unit} onResize={w=>setColWidths({...colWidths, unit:w})} align="center">Unit</ResizableHeader>
                     <ResizableHeader width={colWidths.max} onResize={w=>setColWidths({...colWidths, max:w})} align="right">Max/Time</ResizableHeader>
                 </div>
-                <div className="overflow-y-auto custom-scrollbar bg-white flex-grow">
+                <div className="overflow-y-auto custom-scrollbar bg-white flex-grow" onContextMenu={(e) => {
+                    if (e.target === e.currentTarget) handleContextMenu(e, ''); // Context menu on empty space
+                }}>
                     {resources.map((r, index) => {
                         const isSel = selectedIds.includes(r.id);
                         return (
                             <div 
                                 key={r.id} 
                                 onClick={(e) => handleRowClick(r.id, index, e)}
-                                onContextMenu={(e) => { e.preventDefault(); handleRowClick(r.id, index, e); setCtx({x:e.clientX, y:e.clientY, id:r.id}); }}
+                                onContextMenu={(e) => handleContextMenu(e, r.id)}
                                 className={`p6-row ${isSel ? 'selected ring-1 ring-blue-300' : ''}`}
                                 style={{ height: ROW_HEIGHT }}
                             >
@@ -365,13 +333,6 @@ const ResourcesPanel: React.FC<ResourcesPanelProps> = ({ resources, assignments,
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"/></svg>
                     </button>
                 </div>
-            )}
-
-            {ctx && (
-                 <div className="fixed bg-white border shadow-lg z-50 py-1" style={{top: ctx.y, left: ctx.x}}>
-                     <div className="px-4 py-1 hover:bg-blue-600 hover:text-white cursor-pointer text-xs" onClick={()=>addRes()}>Add Resource</div>
-                     <div className="px-4 py-1 hover:bg-red-600 hover:text-white cursor-pointer text-xs" onClick={()=>deleteRes(ctx.id)}>Delete Resource</div>
-                 </div>
             )}
         </div>
     );

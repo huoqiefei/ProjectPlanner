@@ -34,6 +34,16 @@ body {
     overflow: hidden; /* Default to hidden for App, LandingPage overrides via container */
 }
 
+/* Fix for dark inputs */
+input, select, textarea {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+}
+input:disabled, select:disabled, textarea:disabled {
+    background-color: #f1f5f9 !important;
+    color: #64748b !important;
+}
+
 /* Input Focus */
 input:focus, select:focus {
     outline: 1px solid #2563eb;

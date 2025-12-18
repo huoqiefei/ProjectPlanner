@@ -23,20 +23,6 @@ interface ToolbarProps {
     lang: 'en' | 'zh';
 }
 
-const Icons = {
-    New: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>,
-    Open: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/></svg>,
-    Save: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>,
-    Print: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>,
-    Settings: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
-    User: <svg className="w-full h-full" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/></svg>,
-    Stats: <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
-    Logout: <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
-    Cloud: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>,
-    Critical: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>,
-    Logic: <svg className="w-full h-full" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
-};
-
 const Toolbar: React.FC<ToolbarProps> = ({ 
     onNew, onOpen, onSave, onPrint, onSettings, title, isDirty, uiFontPx, currentUser, 
     onLogout, onUserStats, onCloudBackup, showCritical, setShowCritical, showLogic, setShowLogic, lang 
@@ -48,7 +34,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
     const fontSize = uiFontPx || 13;
     const btnSize = Math.max(30, fontSize * 2.2); 
-    const iconSize = Math.max(16, fontSize * 1.2); 
+    const iconSize = Math.max(18, fontSize * 1.4); 
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -64,49 +50,49 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
     return (
         <div className="bg-slate-100 p-1 border-b border-slate-300 flex items-center gap-1 shadow-sm flex-shrink-0 select-none relative z-40" style={{ height: `${btnSize + 8}px` }}>
-            <button onClick={onNew} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('NewProject')}>
-                <div style={{ width: iconSize, height: iconSize }}>{Icons.New}</div>
+            <button onClick={onNew} style={{ width: btnSize, height: btnSize }} className="flex items-center justify-center hover:bg-slate-200 rounded text-slate-700 transition-colors" title={t('NewProject')}>
+                <span className="material-symbols-outlined" style={{ fontSize: `${iconSize}px` }}>add_box</span>
             </button>
-            <button onClick={() => fileRef.current?.click()} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('OpenProject')}>
-                <div style={{ width: iconSize, height: iconSize }}>{Icons.Open}</div>
+            <button onClick={() => fileRef.current?.click()} style={{ width: btnSize, height: btnSize }} className="flex items-center justify-center hover:bg-slate-200 rounded text-slate-700 transition-colors" title={t('OpenProject')}>
+                <span className="material-symbols-outlined" style={{ fontSize: `${iconSize}px` }}>file_open</span>
             </button>
             <input type="file" ref={fileRef} onChange={onOpen} className="hidden" accept=".json" />
             
             {title && (
                 <>
-                    <button onClick={onSave} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('SaveProject')}>
-                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Save}</div>
+                    <button onClick={onSave} style={{ width: btnSize, height: btnSize }} className="flex items-center justify-center hover:bg-slate-200 rounded text-slate-700 transition-colors" title={t('SaveProject')}>
+                         <span className="material-symbols-outlined" style={{ fontSize: `${iconSize}px` }}>save</span>
                     </button>
                     <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
-                    <button onClick={onPrint} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('PrintPreview')}>
-                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Print}</div>
+                    <button onClick={onPrint} style={{ width: btnSize, height: btnSize }} className="flex items-center justify-center hover:bg-slate-200 rounded text-slate-700 transition-colors" title={t('PrintPreview')}>
+                         <span className="material-symbols-outlined" style={{ fontSize: `${iconSize}px` }}>print</span>
                     </button>
                     <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
                     
                     <button 
                         onClick={() => setShowLogic(!showLogic)} 
                         style={{ width: btnSize, height: btnSize }} 
-                        className={`flex flex-col items-center justify-center rounded transition-colors ${showLogic ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'hover:bg-slate-200 text-slate-700'}`} 
+                        className={`flex items-center justify-center rounded transition-colors ${showLogic ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'hover:bg-slate-200 text-slate-700'}`} 
                         title={t('ToggleLogic')}
                     >
-                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Logic}</div>
+                         <span className="material-symbols-outlined" style={{ fontSize: `${iconSize}px` }}>hub</span>
                     </button>
                     <button 
                         onClick={() => setShowCritical(!showCritical)} 
                         style={{ width: btnSize, height: btnSize }} 
-                        className={`flex flex-col items-center justify-center rounded transition-colors ${showCritical ? 'bg-red-100 text-red-700 border border-red-300' : 'hover:bg-slate-200 text-slate-700'}`} 
+                        className={`flex items-center justify-center rounded transition-colors ${showCritical ? 'bg-red-100 text-red-700 border border-red-300' : 'hover:bg-slate-200 text-slate-700'}`} 
                         title={t('ToggleCritical')}
                     >
-                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Critical}</div>
+                         <span className="material-symbols-outlined" style={{ fontSize: `${iconSize}px` }}>network_node</span>
                     </button>
 
                     <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
                     
-                    <button onClick={onCloudBackup} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('CloudBackup')}>
-                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Cloud}</div>
+                    <button onClick={onCloudBackup} style={{ width: btnSize, height: btnSize }} className="flex items-center justify-center hover:bg-slate-200 rounded text-slate-700 transition-colors" title={t('CloudBackup')}>
+                         <span className="material-symbols-outlined" style={{ fontSize: `${iconSize}px` }}>cloud_upload</span>
                     </button>
-                    <button onClick={onSettings} style={{ width: btnSize, height: btnSize }} className="flex flex-col items-center justify-center hover:bg-slate-200 rounded text-slate-700" title={t('UserPreferences')}>
-                         <div style={{ width: iconSize, height: iconSize }}>{Icons.Settings}</div>
+                    <button onClick={onSettings} style={{ width: btnSize, height: btnSize }} className="flex items-center justify-center hover:bg-slate-200 rounded text-slate-700 transition-colors" title={t('UserPreferences')}>
+                         <span className="material-symbols-outlined" style={{ fontSize: `${iconSize}px` }}>settings</span>
                     </button>
                     
                     <div className="w-px bg-slate-300 mx-1" style={{ height: btnSize }}></div>
@@ -124,7 +110,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                         title={t('UserProfile')}
                     >
                         <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center overflow-hidden border border-blue-700 shadow-sm">
-                             <div style={{ width: '14px', height: '14px' }}>{Icons.User}</div>
+                             <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>person</span>
                         </div>
                         <span className="text-xs font-bold text-slate-700 hidden md:block">{currentUser.name}</span>
                     </button>
@@ -165,27 +151,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
                                 <span className="block text-slate-400">Projects</span>
                                 <span className="font-semibold text-slate-700">1 Active</span>
                             </div>
-                            <div>
-                                <span className="block text-slate-400">Last Login</span>
-                                <span className="font-semibold text-slate-700">Just now</span>
-                            </div>
-                            <div>
-                                <span className="block text-slate-400">Storage</span>
-                                <span className="font-semibold text-slate-700">Local Only</span>
-                            </div>
                         </div>
 
                         <div className="py-1">
                             {isAdmin && (
-                                <button onClick={() => { onUserStats(); setShowUserMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 flex items-center text-slate-700">
-                                    {Icons.Stats} User Statistics
+                                <button onClick={() => { onUserStats(); setShowUserMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 flex items-center gap-2 text-slate-700">
+                                    <span className="material-symbols-outlined text-sm">analytics</span> User Statistics
                                 </button>
                             )}
                             <div className="border-t my-1"></div>
-                            <button onClick={() => { onLogout(); setShowUserMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 flex items-center group">
-                                <span className="group-hover:translate-x-1 transition-transform inline-block">
-                                    {Icons.Logout} 
-                                </span>
+                            <button onClick={() => { onLogout(); setShowUserMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 flex items-center gap-2 group">
+                                <span className="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">logout</span>
                                 Sign Out
                             </button>
                         </div>
